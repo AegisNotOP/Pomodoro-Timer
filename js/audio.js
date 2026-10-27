@@ -77,10 +77,36 @@ class AmbientAudioEngine {
       this.setupNoiseEngine();
       this.setupLofiEngine();
 
+      // Apply initial/saved volume levels directly to the gain nodes
+      this.applySavedVolumes();
+
+      // Always explicitly resume AudioContext on user interaction
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume();
+      }
+
       this.isInitialized = true;
       console.log("Ambient Audio Engine successfully initialized.");
     } catch (e) {
       console.error("Failed to initialize AudioContext:", e);
+    }
+  }
+
+  // Ensures gain nodes reflect current restored volume settings
+  applySavedVolumes() {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    if (this.rainGain) {
+      this.rainGain.gain.setValueAtTime(this.rainVolume * 0.9, now);
+    }
+    if (this.noiseGain) {
+      this.noiseGain.gain.setValueAtTime(this.noiseVolume * 0.8, now);
+    }
+    if (this.lofiGain) {
+      this.lofiGain.gain.setValueAtTime(this.lofiVolume * 0.75, now);
+    }
+    if (this.masterGain) {
+      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : this.masterVolume, now);
     }
   }
 
@@ -127,7 +153,7 @@ class AmbientAudioEngine {
   // --- 1. RAIN SYNTHESIS ENGINE ---
   setupRainEngine() {
     this.rainGain = this.ctx.createGain();
-    this.rainGain.gain.setValueAtTime(0, this.ctx.currentTime);
+    this.rainGain.gain.setValueAtTime(this.rainVolume * 0.9, this.ctx.currentTime);
     this.rainGain.connect(this.masterGain);
 
     // Continuous Rainfall Bed (Filtered Pink Noise)
@@ -201,7 +227,7 @@ class AmbientAudioEngine {
   // --- 2. WHITE / BROWNIAN NOISE ENGINE (OCEAN & WIND AMBIENCE) ---
   setupNoiseEngine() {
     this.noiseGain = this.ctx.createGain();
-    this.noiseGain.gain.setValueAtTime(0, this.ctx.currentTime);
+    this.noiseGain.gain.setValueAtTime(this.noiseVolume * 0.8, this.ctx.currentTime);
     this.noiseGain.connect(this.masterGain);
 
     const brownBuffer = this.createBrownianNoiseBuffer(6);
@@ -235,7 +261,7 @@ class AmbientAudioEngine {
   // --- 3. PROCEDURAL LO-FI JAZZ & BEAT ENGINE ---
   setupLofiEngine() {
     this.lofiGain = this.ctx.createGain();
-    this.lofiGain.gain.setValueAtTime(0, this.ctx.currentTime);
+    this.lofiGain.gain.setValueAtTime(this.lofiVolume * 0.75, this.ctx.currentTime);
     this.lofiGain.connect(this.masterGain);
 
     // Vinyl crackle noise layer

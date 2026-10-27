@@ -216,3 +216,87 @@ input[type="range"]::-moz-range-thumb:hover {
   opacity: 0;
   pointer-events: none;
 }
+
+/* Control Buttons & Active State Glows */
+.timer-control-btn {
+  min-height: 38px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.timer-control-btn:focus-visible {
+  outline: none;
+  ring: 2px;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.6);
+}
+
+.timer-start-active {
+  background: rgba(16, 185, 129, 0.18) !important;
+  border-color: rgba(52, 211, 153, 0.45) !important;
+  color: #a7f3d0 !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+.timer-pause-active {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border-color: rgba(251, 191, 36, 0.45) !important;
+  color: #fde68a !important;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Responsive Dashboard Viewport Bounds - NO scrollbar on sanctuary-dashboard */
+#sanctuary-dashboard {
+  overflow: visible;
+  max-height: none;
+}
+
+/* Rainbow Track for Custom Hue Slider */
+input[type="range"].hue-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%) !important;
+  height: 6px;
+  border-radius: 9999px;
+}
+input[type="range"].hue-slider::-moz-range-track {
+  background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%) !important;
+  height: 6px;
+  border-radius: 9999px;
+}
+
+/* Custom Color Popover Glass Effect */
+#custom-color-popover {
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+
+/* Ambient Audio Mixer Dock Responsive Positioning */
+@media (min-width: 1024px) {
+  #ambient-audio-mixer {
+    position: fixed !important;
+    bottom: 1rem !important;
+    left: 1rem !important;
+    width: 18rem !important; /* w-72 */
+    margin: 0 !important;
+  }
+}
+
+/* Prevent fixed footer from overlapping dashboard controls on short or narrow displays */
+.keyboard-shortcuts-footer {
+  transition: opacity 0.3s ease;
+}
+
+@media (max-height: 720px), (max-width: 640px) {
+  .keyboard-shortcuts-footer {
+    display: none !important;
+  }
+}
+
+/* Mobile Safe-Area and Dynamic Chrome Padding */
+@supports (padding: max(0px)) {
+  body {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+}

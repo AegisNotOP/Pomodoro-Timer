@@ -22,6 +22,7 @@ class PomodoroTimer {
 
     // Session Metrics
     this.completedFocusSessions = 0;
+    this.todayFocusSessions = 0;
     this.totalFocusMinutes = 0;
 
     // Interval tracking with high-accuracy timestamp delta
@@ -32,6 +33,16 @@ class PomodoroTimer {
     this.onTickCallback = null;
     this.onStateChangeCallback = null;
     this.onCompleteCallback = null;
+  }
+
+  setTodayFocusSessions(count) {
+    this.todayFocusSessions = Math.max(0, parseInt(count, 10) || 0);
+    this.notifyStateChange();
+  }
+
+  setCompletedFocusSessions(count) {
+    this.completedFocusSessions = Math.max(0, parseInt(count, 10) || 0);
+    this.notifyStateChange();
   }
 
   setMode(mode) {
@@ -91,13 +102,10 @@ class PomodoroTimer {
 
   skip() {
     this.pause();
+    // Skipping a focus session advances to short break without counting as completed.
+    // Long breaks are only awarded upon naturally completing the 4th session of a cycle.
     if (this.currentMode === 'focus') {
-      this.completedFocusSessions++;
-      if (this.completedFocusSessions % 4 === 0) {
-        this.setMode('longBreak');
-      } else {
-        this.setMode('shortBreak');
-      }
+      this.setMode('shortBreak');
     } else {
       this.setMode('focus');
     }
@@ -118,9 +126,11 @@ class PomodoroTimer {
 
   handleComplete() {
     this.pause();
+    const completedMode = this.currentMode;
 
-    if (this.currentMode === 'focus') {
+    if (completedMode === 'focus') {
       this.completedFocusSessions++;
+      this.todayFocusSessions++;
       this.totalFocusMinutes += Math.round(this.totalDuration / 60);
     }
 
@@ -130,11 +140,11 @@ class PomodoroTimer {
     }
 
     if (this.onCompleteCallback) {
-      this.onCompleteCallback(this.currentMode, this.completedFocusSessions);
+      this.onCompleteCallback(completedMode, this.completedFocusSessions, this.todayFocusSessions);
     }
 
-    // Auto-advance mode suggestions
-    if (this.currentMode === 'focus') {
+    // Auto-advance mode progression
+    if (completedMode === 'focus') {
       if (this.completedFocusSessions % 4 === 0) {
         this.setMode('longBreak');
       } else {
@@ -173,7 +183,11 @@ class PomodoroTimer {
       this.onStateChangeCallback({
         isRunning: this.isRunning,
         currentMode: this.currentMode,
-        completedSessions: this.completedFocusSessions
+        completedSessions: this.completedFocusSessions,
+        todaySessions: this.todayFocusSessions,
+        timeLeft: this.timeLeft,
+        totalDuration: this.totalDuration,
+        formattedTime: this.getFormattedTime()
       });
     }
   }
