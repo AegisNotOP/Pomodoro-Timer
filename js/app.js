@@ -953,7 +953,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const userDropdownMenu = document.getElementById('user-dropdown-menu');
   const dropdownUserEmail = document.getElementById('dropdown-user-email');
   const dropdownHistoryBtn = document.getElementById('dropdown-history-btn');
-  const dropdownSettingsBtn = document.getElementById('dropdown-settings-btn');
   const dropdownSignoutBtn = document.getElementById('dropdown-signout-btn');
 
   const authModal = document.getElementById('auth-modal');
@@ -967,16 +966,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const authSubmitText = document.getElementById('auth-submit-text');
   const authSubmitSpinner = document.getElementById('auth-submit-spinner');
   const authAlert = document.getElementById('auth-alert');
-
-  const firebaseConfigToggle = document.getElementById('firebase-config-toggle');
-  const firebaseConfigSection = document.getElementById('firebase-config-section');
-  const firebaseConfigToggleArrow = document.getElementById('firebase-config-toggle-arrow');
-  const cfgSnippet = document.getElementById('cfg-snippet');
-  const cfgApiKey = document.getElementById('cfg-api-key');
-  const cfgProjectId = document.getElementById('cfg-project-id');
-  const cfgSaveBtn = document.getElementById('cfg-save-btn');
-  const cfgClearBtn = document.getElementById('cfg-clear-btn');
-  const cfgTestStatus = document.getElementById('cfg-test-status');
 
   // Study History Modal Elements
   const historyBtn = document.getElementById('history-btn');
@@ -997,7 +986,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentHistoryFilter = 'all';
 
   // --- Modal Helpers ---
-  function showAuthModal(openConfig = false) {
+  function showAuthModal() {
     if (!authModal) return;
     authModal.classList.remove('modal-hidden');
     authModal.classList.add('modal-visible');
@@ -1005,25 +994,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isConfigured = window.ConfigManager && window.ConfigManager.isConfigured();
 
-    // Populate Firebase config inputs from current configuration
-    if (window.ConfigManager) {
-      const cfg = window.ConfigManager.getConfig();
-      if (cfgApiKey) cfgApiKey.value = cfg.apiKey || '';
-      if (cfgProjectId) cfgProjectId.value = cfg.projectId || '';
-      if (cfgSnippet && (cfg.apiKey || cfg.projectId)) {
-        cfgSnippet.value = `apiKey: "${cfg.apiKey}",\nprojectId: "${cfg.projectId}",\nauthDomain: "${cfg.authDomain || ''}"`;
-      }
-    }
-
     if (!isConfigured) {
-      showAuthAlert("ℹ️ Firebase is not connected yet. The timer is running in offline Guest Mode. Expand 'Firebase Project Settings' below to connect your project for cross-device cloud sync.", 'info');
-      if (firebaseConfigSection) {
-        firebaseConfigSection.classList.remove('hidden');
-        if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(180deg)';
-      }
-    } else if (openConfig && firebaseConfigSection) {
-      firebaseConfigSection.classList.remove('hidden');
-      if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(180deg)';
+      showAuthAlert("ℹ️ Firebase is not configured yet. The timer is running in offline Guest Mode. To enable user accounts and cloud sync, add your public Firebase web configuration in js/config.js.", 'info');
     }
 
     if (authEmail) authEmail.focus();
@@ -1074,70 +1046,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (tabSignin) tabSignin.addEventListener('click', () => setAuthMode('signin'));
   if (tabSignup) tabSignup.addEventListener('click', () => setAuthMode('signup'));
 
-  if (openAuthBtn) openAuthBtn.addEventListener('click', () => showAuthModal(false));
+  if (openAuthBtn) openAuthBtn.addEventListener('click', () => showAuthModal());
   if (closeAuthModal) closeAuthModal.addEventListener('click', hideAuthModal);
-
-  // Toggle Firebase project config accordion inside modal
-  if (firebaseConfigToggle) {
-    firebaseConfigToggle.addEventListener('click', () => {
-      const isHidden = firebaseConfigSection.classList.contains('hidden');
-      if (isHidden) {
-        firebaseConfigSection.classList.remove('hidden');
-        if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(180deg)';
-      } else {
-        firebaseConfigSection.classList.add('hidden');
-        if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(0deg)';
-      }
-    });
-  }
-
-  // Save Firebase Configuration Override
-  if (cfgSaveBtn) {
-    cfgSaveBtn.addEventListener('click', async () => {
-      const snippet = cfgSnippet ? cfgSnippet.value.trim() : '';
-      const apiKey = cfgApiKey ? cfgApiKey.value.trim() : '';
-      const projectId = cfgProjectId ? cfgProjectId.value.trim() : '';
-
-      try {
-        if (snippet) {
-          window.ConfigManager.saveOverride(snippet);
-        } else if (apiKey && projectId) {
-          window.ConfigManager.saveOverride({ apiKey, projectId });
-        } else {
-          throw new Error("Please enter your Firebase API Key and Project ID, or paste the config object.");
-        }
-
-        cfgTestStatus.textContent = "Configuration saved. Connecting to Firebase...";
-        cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-amber-500/15 border border-amber-400/30 text-amber-300 block";
-
-        const initialized = window.AuthManager.reinitialize();
-        if (initialized) {
-          cfgTestStatus.textContent = "✓ Connected to Firebase project successfully!";
-          cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 block";
-          showToast("🔥 Firebase connected successfully!");
-        } else {
-          cfgTestStatus.textContent = "Could not initialize Firebase. Check API Key and Project ID.";
-          cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-300 block";
-        }
-      } catch (err) {
-        cfgTestStatus.textContent = err.message || "Failed to save configuration.";
-        cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-300 block";
-      }
-    });
-  }
-
-  if (cfgClearBtn) {
-    cfgClearBtn.addEventListener('click', () => {
-      window.ConfigManager.clearOverride();
-      if (cfgSnippet) cfgSnippet.value = '';
-      if (cfgApiKey) cfgApiKey.value = '';
-      if (cfgProjectId) cfgProjectId.value = '';
-      cfgTestStatus.textContent = "Stored configuration reset to defaults.";
-      cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-slate-500/15 border border-white/10 text-slate-300 block";
-      window.AuthManager.reinitialize();
-      showToast("Firebase configuration cleared.");
-    });
-  }
 
   // Auth Form Submission
   if (authForm) {
@@ -1145,13 +1055,9 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       hideAuthAlert();
 
-      // Check if Firebase credentials are configured
+      // Check if Firebase credentials are configured in js/config.js
       if (!window.ConfigManager.isConfigured()) {
-        showAuthAlert("Firebase is not connected yet. Please enter your Firebase web app configuration under 'Firebase Project Settings' below, or continue using Guest Mode.", 'error');
-        if (firebaseConfigSection) {
-          firebaseConfigSection.classList.remove('hidden');
-          if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(180deg)';
-        }
+        showAuthAlert("Firebase is not configured. Please add your public Firebase web configuration in js/config.js to enable user accounts, or continue using Guest Mode.", 'error');
         return;
       }
 
@@ -1204,13 +1110,6 @@ document.addEventListener('DOMContentLoaded', () => {
     dropdownHistoryBtn.addEventListener('click', () => {
       userDropdownMenu.classList.add('hidden');
       showHistoryModal();
-    });
-  }
-
-  if (dropdownSettingsBtn) {
-    dropdownSettingsBtn.addEventListener('click', () => {
-      userDropdownMenu.classList.add('hidden');
-      showAuthModal(true);
     });
   }
 

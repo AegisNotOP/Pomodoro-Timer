@@ -1,46 +1,54 @@
-# Firebase Backend Setup & Cloud Sync Guide
+# Firebase Setup & Deployment Guide
 
-This document is the official setup guide for **The Algorithmic Ambient Room** Pomodoro focus sanctuary. The application uses **Firebase Authentication** for user accounts and **Cloud Firestore** for secure, real-time study-session history and statistics.
+This document is the official setup and deployment guide for **The Algorithmic Ambient Room** Pomodoro focus sanctuary. The application uses **Firebase Authentication** for user accounts and **Cloud Firestore** for cross-device study-session history and statistics.
 
 ---
 
-## 1. Architecture & Security Model
+## 1. Where to Put Your Firebase Web Configuration
 
-### Guest Mode First
-- The timer, ambient audio engine, generative canvas, and local session tracking work **100% offline without signing in**.
-- When an account is created or signed in, all sessions recorded in guest mode automatically sync to Cloud Firestore without duplicates.
+The application uses **one fixed, code-level Firebase configuration**. There are no in-app settings forms or `localStorage` overrides.
 
-### Public Web-App Configuration vs. Private Secrets
-Firebase uses a client-side architecture where web apps communicate directly with Google Cloud services using public identifiers:
+Open [`js/config.js`](js/config.js) and paste your public web app credentials directly into `window.FIREBASE_CONFIG`:
 
-| Configuration Item | Status | Purpose |
-| :--- | :--- | :--- |
-| `apiKey` | **Public** | Identifies your Firebase project to Google APIs. Routes requests from your browser. |
-| `authDomain` | **Public** | Domain used for OAuth redirects and auth state verification. |
-| `projectId` | **Public** | Unique identifier for your Firebase and Google Cloud project. |
-| `storageBucket` | **Public** | Name of the Cloud Storage bucket for asset storage. |
-| `messagingSenderId` | **Public** | Numeric sender ID for Firebase Cloud Messaging. |
-| `appId` | **Public** | Unique identifier for your registered Firebase web app. |
-| `measurementId` | **Public** | Optional Google Analytics stream ID. |
+```javascript
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSy...",
+  authDomain: "your-project-id.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project-id.firebasestorage.app",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abcdef123456",
+  measurementId: "G-XXXXXXXXXX" // Optional Google Analytics stream ID
+};
+```
 
-> [!IMPORTANT]
-> **What credentials must NEVER be placed in frontend code?**
-> - **Google Cloud Service Account Keys** (`serviceAccountKey.json`, containing `"type": "service_account"`, `"private_key": "-----BEGIN PRIVATE KEY..."`).
-> - **Firebase Admin SDK credentials** or Google Cloud IAM service account tokens.
-> - Database administrative passwords or OAuth client secrets.
+---
+
+## 2. Public Web Configuration vs. Forbidden Private Credentials
+
+### Public Web Configuration (Safe in `js/config.js`)
+The values in `window.FIREBASE_CONFIG` (`apiKey`, `projectId`, `authDomain`, `storageBucket`, `messagingSenderId`, `appId`) identify your client web application to Google Cloud endpoints. 
+
+In Firebase's architecture, browsers connect directly to Firebase Authentication and Cloud Firestore without a custom intermediate server. Data privacy and user isolation are enforced by **Cloud Firestore Security Rules** ([`firestore.rules`](firestore.rules)), not by keeping the `apiKey` secret.
+
+### Forbidden Private Credentials (NEVER Put in Frontend Code)
+> [!CAUTION]
+> **Never include any of the following in this repository or client-side files:**
+> - **Google Cloud Service Account Keys** (`serviceAccountKey.json`, or any JSON containing `"private_key": "-----BEGIN PRIVATE KEY..."`).
+> - **Firebase Admin SDK private keys**.
+> - Database master passwords or cloud IAM root credentials.
 > 
-> Service account keys grant administrative access that bypasses all security rules. In contrast, client-side Firebase access is strictly protected by **Cloud Firestore Security Rules** (`firestore.rules`), which enforce user-by-user data isolation.
+> Service account credentials bypass all Firestore Security Rules, granting unrestricted administrative access to read, overwrite, or delete all databases. Client-side applications only ever need the public web app configuration shown above.
 
 ---
 
-## 2. Step-by-Step Firebase Console Setup (5–10 Minutes)
+## 3. Step-by-Step Firebase Console Setup
 
 ### Step 1: Create a Free Firebase Project
 1. Open the [Firebase Console](https://console.firebase.google.com/) and sign in with your Google account.
 2. Click **Add project** (or **Create a project**).
-3. Enter a project name (e.g. `pomodoro-sanctuary`).
+3. Name your project (e.g., `pomodoro-sanctuary`).
 4. (Optional) Disable Google Analytics if not needed, then click **Create project**.
-5. Once provisioning completes, click **Continue**.
 
 ---
 
@@ -54,96 +62,123 @@ Firebase uses a client-side architecture where web apps communicate directly wit
 ---
 
 ### Step 3: Configure Authorized Domains
-1. In the **Authentication** section, click the **Settings** tab at the top.
-2. Select **Authorized domains** in the secondary menu.
-3. By default, `localhost` and `your-project-id.firebaseapp.com` are already listed.
-4. If you run the app from an IP or custom domain, click **Add domain**:
-   - For local development servers using an IP, add `127.0.0.1`.
-   - For GitHub Pages, add `username.github.io`.
-   - For custom hosting, add `yourdomain.com`.
-5. Click **Save**.
+Firebase Authentication only accepts requests originating from approved domains.
+1. In **Authentication**, click the **Settings** tab at the top.
+2. Select **Authorized domains** in the sub-menu.
+3. `localhost` and `your-project-id.firebaseapp.com` are authorized by default.
+4. Click **Add domain** for any environment you use:
+   - For VS Code Live Server or IP testing, add: `127.0.0.1`
+   - For GitHub Pages, add: `your-username.github.io`
+   - For custom hosting, add: `yourdomain.com`
+
+> [!NOTE]
+> When adding domains, enter only the hostname (e.g. `127.0.0.1` or `username.github.io`). Do not include `http://`, `https://`, port numbers, or trailing slashes.
 
 ---
 
 ### Step 4: Create Cloud Firestore Database
 1. In the left navigation menu, go to **Build** $\to$ **Firestore Database**.
 2. Click **Create database**.
-3. **Database location**: Choose a multi-region or regional location nearest to your location (e.g. `nam5` [us-central] or `eur3` [europe-west]).
-4. **Security rules**: Select **Start in production mode** (we will deploy our rules in the next step).
-5. Click **Create** and wait a moment for the database to provision.
+3. **Database location**: Choose a regional location near you (e.g. `nam5` [us-central] or `eur3` [europe-west]).
+4. **Security rules**: Select **Start in production mode**.
+5. Click **Create**.
 
 ---
 
 ### Step 5: Deploy Firestore Security Rules
-1. In the **Firestore Database** section, click on the **Rules** tab at the top.
-2. Open the file [`firestore.rules`](firestore.rules) in this repository and copy its entire contents.
-3. Paste the contents into the Firebase Console rules editor, replacing any default rules.
+1. In **Firestore Database**, click the **Rules** tab at the top.
+2. Open [`firestore.rules`](firestore.rules) from this project and copy its entire contents.
+3. Paste the contents into the Firebase Console rules editor.
 4. Click **Publish**.
 
-#### What These Rules Enforce:
-- **Strict User Isolation**: All records live under `/users/{userId}/study_sessions/{sessionId}`. Queries and mutations are restricted to `request.auth.uid == userId`. Users cannot read, write, or query another user's sessions.
-- **Schema Validation**: Ensures all required fields exist, `mode` is one of `['focus', 'shortBreak', 'longBreak']`, `duration_minutes` is non-negative, and timestamps are valid.
-- **Field Whitelist & Immutability**: Prohibits unexpected fields and prevents altering document ownership (`userId`) upon update.
-- **Default Deny**: Closes all other database collections to unauthorized access.
+#### What These Rules Guarantee:
+- **Strict User Isolation**: All records live under `/users/{userId}/study_sessions/{sessionId}`. Read, write, and delete permissions are granted strictly when `request.auth.uid == userId`.
+- **Validation**: Enforces non-negative `duration_minutes`, valid timestamps, and allowed modes (`'focus'`, `'shortBreak'`, `'longBreak'`).
+- **Immutability**: Prevents tampering with ownership (`userId`) or creation timestamps.
+- **Default Deny**: Closes all other paths to unauthorized access.
 
 ---
 
-### Step 6: Register Web App & Get Configuration
+### Step 6: Register Web App & Copy Configuration
 1. Click the **gear icon** (Project Settings) at the top of the left sidebar.
-2. In the **General** tab, scroll down to the **Your apps** card.
-3. Click the **Web** icon (`</>`).
-4. Enter an App nickname (e.g., `Pomodoro Web`).
-5. Click **Register app**.
-6. Firebase will display your `firebaseConfig` object snippet:
-   ```javascript
-   const firebaseConfig = {
-     apiKey: "AIzaSy...",
-     authDomain: "your-project.firebaseapp.com",
-     projectId: "your-project",
-     storageBucket: "your-project.firebasestorage.app",
-     messagingSenderId: "123456789012",
-     appId: "1:123456789012:web:abcdef..."
-   };
-   ```
+2. In the **General** tab, scroll to the **Your apps** card and click the **Web icon** (`</>`).
+3. Enter an App nickname (e.g., `Pomodoro Web`) and click **Register app**.
+4. Copy the values inside `firebaseConfig` and paste them into `window.FIREBASE_CONFIG` in [`js/config.js`](js/config.js).
 
 ---
 
-## 3. Connecting Firebase to the Website
+## 4. How to Deploy the Application
 
-You have two ways to supply your configuration:
+This is a static web application (HTML, CSS, vanilla JavaScript). It requires no build step (`npm run build`), no Node.js runtime, and no backend server.
 
-### Method A: In-App UI Configuration (Recommended)
-1. Open the website in your browser.
-2. Click **Sign In** in the top navigation bar.
-3. Click the **Firebase Project Settings** accordion at the bottom of the dialog.
-4. Paste your configuration object snippet or enter your **API Key** and **Project ID**.
-5. Click **Save & Connect Firebase**.
-6. The configuration is saved to your browser's local storage and immediately overrides any default settings.
-
-### Method B: Code-Level Configuration ([`js/config.js`](js/config.js))
-1. Open [`js/config.js`](js/config.js) in your editor.
-2. Fill in the `window.FIREBASE_CONFIG` object with your project credentials:
-   ```javascript
-   window.FIREBASE_CONFIG = {
-     apiKey: "AIzaSy...",
-     authDomain: "your-project.firebaseapp.com",
-     projectId: "your-project",
-     storageBucket: "your-project.firebasestorage.app",
-     messagingSenderId: "123456789012",
-     appId: "1:123456789012:web:abcdef..."
-   };
+### Option A: Deploy to GitHub Pages (Recommended, Free)
+1. Initialize a git repository and commit your files:
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial Pomodoro setup"
    ```
-3. Save the file.
-
-> [!TIP]
-> **Configuration Priority:**
-> In-app settings entered via the UI modal always take precedence over code-level values in `js/config.js`. If you need to clear the in-app override, click **Clear** in the Firebase Project Settings accordion.
+2. Push your repository to GitHub:
+   ```bash
+   git remote add origin https://github.com/your-username/pomodoro-timer.git
+   git branch -M main
+   git push -u origin main
+   ```
+3. In your GitHub repository:
+   - Go to **Settings** $\to$ **Pages**.
+   - Under **Build and deployment $\to$ Source**, select **Deploy from a branch**.
+   - Select `main` branch and `/ (root)` folder, then click **Save**.
+4. GitHub Pages will publish your site at `https://your-username.github.io/pomodoro-timer/`.
+5. **Important**: In the Firebase Console, go to **Authentication $\to$ Settings $\to$ Authorized domains** and add `your-username.github.io`.
 
 ---
 
-## 4. Verification & Testing
+### Option B: Deploy to Firebase Hosting (Free, Fast)
+1. Install the Firebase CLI:
+   ```bash
+   npm install -g firebase-tools
+   ```
+2. Log in and initialize hosting in your project root:
+   ```bash
+   firebase login
+   firebase init hosting
+   ```
+   - Select your Firebase project.
+   - When asked for your public directory, type `.` (or press Enter if default).
+   - Configure as a single-page app: `No`.
+   - Overwrite `index.html`: `No`.
+3. Deploy to production:
+   ```bash
+   firebase deploy --only hosting
+   ```
+4. Firebase Hosting URLs (`https://your-project-id.web.app`) are **automatically pre-authorized** for authentication.
 
-1. **Guest Mode**: Open the app without entering credentials. The timer, soundscapes, and palette controls function normally. Completed sessions are saved locally and visible in **Study History** with the `Local Guest Storage` badge.
-2. **Account Creation**: Click **Sign In**, switch to **Create Account**, enter an email and password ($\ge 6$ characters), and submit.
-3. **Cloud Sync**: Upon sign-in, your email appears in the top navigation bar, and any offline sessions are synced into Cloud Firestore.
-4. **Session Recording**: Complete a focus or break session; verify that it appears once in the Study History list and that total focus time and today's session counts match the on-screen counter.
+---
+
+### Option C: Deploy to Netlify or Vercel
+1. Drag and drop the project folder onto the [Netlify Drop](https://app.netlify.com/drop) page, or import the GitHub repository in [Vercel](https://vercel.com).
+2. Copy your assigned production URL (e.g., `pomodoro-timer.netlify.app` or `pomodoro.vercel.app`).
+3. Add that domain to **Authentication $\to$ Settings $\to$ Authorized domains** in the Firebase Console.
+
+---
+
+### Option D: Local Development Server
+Modern browsers disallow authentication from `file:///` URLs (because `file:///` produces a `null` origin). To test locally, use any static web server:
+
+```bash
+# Using Python 3:
+python -m http.server 8000
+
+# Using Node / npx:
+npx serve .
+```
+
+Then open `http://localhost:8000` or `http://127.0.0.1:8000`. (Ensure `127.0.0.1` is in your Authorized Domains list).
+
+---
+
+## 5. Offline Guest Mode & Status Messaging
+
+- **Unconfigured Notice**: When Firebase credentials are not yet entered in `js/config.js`, opening the Sign-In modal displays an informative message explaining that the app is in offline Guest Mode, and prompts you to configure `js/config.js`.
+- **Guest Mode Functionality**: Users can run focus timers, change sound mixer sliders, switch themes, and track study history completely offline.
+- **Automatic Cloud Sync**: As soon as valid credentials are added in `js/config.js` and an account is created or signed in, all previously logged offline sessions automatically sync into Cloud Firestore without creating duplicate records.

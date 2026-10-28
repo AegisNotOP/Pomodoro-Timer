@@ -113,12 +113,6 @@
               </svg>
               <span>Study History</span>
             </button>
-            <button id="dropdown-settings-btn" class="w-full text-left px-3 py-1.5 rounded-xl hover:bg-white/10 flex items-center gap-2 transition-colors">
-              <svg class="w-3.5 h-3.5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              </svg>
-              <span>Cloud Config</span>
-            </button>
             <div class="border-t border-white/10 my-1"></div>
             <button id="dropdown-signout-btn" class="w-full text-left px-3 py-1.5 rounded-xl hover:bg-rose-500/20 text-rose-300 flex items-center gap-2 transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -516,55 +510,6 @@
         <p class="text-[10px] text-slate-400">
           <span class="text-amber-400 font-medium">Guest Mode:</span> You can use the timer without signing in. Any sessions logged offline will automatically sync once you sign in.
         </p>
-      </div>
-
-      <!-- Collapsible Firebase Project Connection Accordion -->
-      <div class="mt-3 pt-2 border-t border-white/10">
-        <button id="firebase-config-toggle" type="button" class="w-full flex items-center justify-between text-[11px] text-slate-400 hover:text-white py-1 transition-colors">
-          <span class="flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M4.654 18.72l-.004-.007 6.136-11.458-3.08-5.834a.78.78 0 00-1.428.077L4.654 18.72zm13.682-.016l-1.956-11.9a.78.78 0 00-1.353-.418l-9.845 12.31 6.892 3.864a1.56 1.56 0 001.488 0l4.774-2.676zM11.968 8.448l2.095 3.923-3.69 6.845 1.595-10.768z" />
-            </svg>
-            <span>Firebase Project Settings</span>
-          </span>
-          <span id="firebase-config-toggle-arrow" class="text-xs transition-transform duration-200">▼</span>
-        </button>
-
-        <!-- Collapsible Content -->
-        <div id="firebase-config-section" class="hidden pt-2 space-y-2">
-          <p class="text-[10px] text-slate-400">
-            Paste your <code class="text-amber-300">firebaseConfig</code> from your Firebase Console (<span class="text-slate-300">Project Settings -> General -> Your apps -> Web app</span>):
-          </p>
-
-          <div class="space-y-1">
-            <div class="flex items-center justify-between">
-              <label for="cfg-snippet" class="block text-[10px] text-slate-300 font-medium">Paste Config Object or JSON</label>
-              <span class="text-[9px] text-emerald-400">Auto-Detects Fields</span>
-            </div>
-            <textarea id="cfg-snippet" rows="3" class="glass-input w-full px-2.5 py-1.5 rounded-lg text-[10px] font-mono text-white placeholder-slate-500" placeholder='apiKey: "AIzaSy...",&#10;projectId: "my-app",&#10;authDomain: "..."'></textarea>
-          </div>
-
-          <div class="grid grid-cols-2 gap-1.5 pt-0.5">
-            <div class="space-y-0.5">
-              <label class="block text-[9px] text-slate-400">API Key</label>
-              <input id="cfg-api-key" type="text" class="glass-input w-full px-2 py-1 rounded-md text-[10px] text-white" placeholder="AIzaSy...">
-            </div>
-            <div class="space-y-0.5">
-              <label class="block text-[9px] text-slate-400">Project ID</label>
-              <input id="cfg-project-id" type="text" class="glass-input w-full px-2 py-1 rounded-md text-[10px] text-white" placeholder="my-pomodoro-app">
-            </div>
-          </div>
-
-          <div class="flex items-center gap-1.5 pt-1">
-            <button id="cfg-save-btn" type="button" class="flex-1 py-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/30 text-xs font-medium transition-colors">
-              Save & Connect Firebase
-            </button>
-            <button id="cfg-clear-btn" type="button" class="py-1.5 px-2.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-rose-300 text-xs transition-colors" title="Clear Stored Config">
-              Reset
-            </button>
-          </div>
-          <div id="cfg-test-status" class="hidden text-[10px] p-1.5 rounded-lg"></div>
-        </div>
       </div>
     </div>
   </div>
