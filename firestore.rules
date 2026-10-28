@@ -1,0 +1,158 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: /users/{userId}/study_sessions/{sessionId}
+// Document ID: {sessionId} (auto-generated or client UUID string)
+// Scope: User-isolated Pomodoro focus & break session logs
+//
+// Fields:
+//   - userId: string (required, immutable, must strictly match request.auth.uid)
+//   - mode: string (required, must be one of 'focus', 'shortBreak', 'longBreak')
+//   - duration_minutes: int (required, integer >= 0, max 10080 minutes / 7 days)
+//   - started_at: timestamp or ISO 8601 string (required)
+//   - ended_at: timestamp or ISO 8601 string (required)
+//   - completed_naturally: bool (required)
+//   - notes: string (optional, up to 500 characters)
+//   - created_at: timestamp or ISO 8601 string (optional, immutable once written)
+//
+// Access Control & Security Guarantees:
+//   - User Isolation: Only the authenticated owner (request.auth.uid == userId)
+//     can read (get & list), create, update, or delete study sessions.
+//   - Schema Validation: Strict field whitelist, type enforcement, and bounds checking.
+//   - Validator Pattern: Full schema validation runs on both create and update.
+//   - Immutable Fields: userId and created_at cannot be tampered with on update.
+//   - Default Deny: All unmatched paths and unauthenticated access are denied.
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if the request is from an authenticated user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the authenticated user matches the path's userId
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if the authenticated user matches the existing document's userId field
+    function isDocOwner() {
+      return isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Validate that required fields exist in the incoming document
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate that only permitted fields exist (strictly prevents schema pollution)
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate that immutable fields were not altered in the update diff
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Validate that a value is either a valid Firestore timestamp or a properly formatted ISO 8601 date string
+    function isValidDateOrTimestamp(val) {
+      return val is timestamp ||
+             (val is string &&
+              val.size() >= 10 &&
+              val.size() <= 50 &&
+              val.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}.*)?$'));
+    }
+
+    // Domain validator function for study session documents
+    // CRITICAL: Used in both create and update operations to eliminate the Update Bypass vulnerability
+    function isValidStudySession(data, userId) {
+      return hasOnlyAllowedFields([
+               'userId',
+               'mode',
+               'duration_minutes',
+               'started_at',
+               'ended_at',
+               'completed_naturally',
+               'notes',
+               'created_at'
+             ]) &&
+             hasRequiredFields([
+               'userId',
+               'mode',
+               'duration_minutes',
+               'started_at',
+               'ended_at',
+               'completed_naturally'
+             ]) &&
+             // userId validation: must be string, match path userId, and match authenticated user UID
+             data.userId is string &&
+             data.userId == userId &&
+             data.userId == request.auth.uid &&
+             // mode validation: strictly one of the 3 supported Pomodoro session modes
+             data.mode is string &&
+             data.mode in ['focus', 'shortBreak', 'longBreak'] &&
+             // duration_minutes validation: non-negative integer with DoS ceiling (max 7 days)
+             data.duration_minutes is int &&
+             data.duration_minutes >= 0 &&
+             data.duration_minutes <= 10080 &&
+             // started_at and ended_at validation: valid timestamp or ISO date string
+             isValidDateOrTimestamp(data.started_at) &&
+             isValidDateOrTimestamp(data.ended_at) &&
+             // completed_naturally validation: boolean flag
+             data.completed_naturally is bool &&
+             // notes validation (optional): string limited to 500 characters
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+             // created_at validation (optional): timestamp or ISO date string if supplied
+             (!('created_at' in data) || isValidDateOrTimestamp(data.created_at));
+    }
+
+    // Verify immutability of fields during updates
+    function areImmutableFieldsPreserved() {
+      return areImmutableFieldsUnchanged(['userId']) &&
+             (!('created_at' in resource.data) ||
+              ('created_at' in request.resource.data && request.resource.data.created_at == resource.data.created_at));
+    }
+
+    // ---------------------------------------------------------------
+    // Global Default Deny
+    // ---------------------------------------------------------------
+    // Deny read and write access to all documents by default.
+    // Explicit allow rules below grant least-privilege access.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------------
+    // User Study Sessions Subcollection
+    // ---------------------------------------------------------------
+    match /users/{userId}/study_sessions/{sessionId} {
+      // Read: Authenticated users can only read (get, list) their own study sessions
+      allow read: if isOwner(userId);
+
+      // Create: Users can only create sessions in their own subcollection with valid data schema
+      allow create: if isOwner(userId) &&
+                       isValidStudySession(request.resource.data, userId);
+
+      // Update: Users can only update their own existing sessions, preserving immutable fields and schema validity
+      allow update: if isOwner(userId) &&
+                       isDocOwner() &&
+                       isValidStudySession(request.resource.data, userId) &&
+                       areImmutableFieldsPreserved();
+
+      // Delete: Users can only delete their own study sessions
+      allow delete: if isOwner(userId) && isDocOwner();
+    }
+  }
+}

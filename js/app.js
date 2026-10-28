@@ -384,8 +384,27 @@ document.addEventListener('DOMContentLoaded', () => {
     document.title = `${state.formattedTime} • ${label} — The Algorithmic Ambient Room`;
   };
 
+  // Track session start timestamp for study history sync
+  let currentSessionStartTime = null;
+
   // Called when a session finishes naturally
   timer.onCompleteCallback = (completedMode, totalCompletedSessions, todayCompletedSessions) => {
+    const durationMinutes = Math.round(timer.totalDuration / 60);
+    const endedAt = new Date();
+    const startedAt = currentSessionStartTime || new Date(endedAt.getTime() - durationMinutes * 60000);
+
+    // Save study session to Cloud / Local History
+    if (window.StudySync && typeof window.StudySync.recordSession === 'function') {
+      window.StudySync.recordSession({
+        mode: completedMode,
+        duration_minutes: durationMinutes,
+        started_at: startedAt,
+        ended_at: endedAt,
+        completed_naturally: true
+      });
+    }
+    currentSessionStartTime = null;
+
     if (completedMode === 'focus') {
       const todayTotal = recordNaturalFocusCompletion();
       showToast(`✨ Focus session complete! Today's total: ${todayTotal} focus sessions. Time for a restful pause.`, 4500);
@@ -399,6 +418,9 @@ document.addEventListener('DOMContentLoaded', () => {
   timerStartBtn.addEventListener('click', () => {
     audioEngine.init();
     if (!timer.isRunning) {
+      if (!currentSessionStartTime) {
+        currentSessionStartTime = new Date();
+      }
       timer.start();
       showToast('Timer started');
     }
@@ -412,12 +434,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   timerResetBtn.addEventListener('click', () => {
+    currentSessionStartTime = null;
     timer.reset();
     showToast('Timer reset');
     saveCurrentState();
   });
 
   timerSkipBtn.addEventListener('click', () => {
+    currentSessionStartTime = null;
     timer.skip();
     showToast('Session skipped');
     saveCurrentState();
@@ -426,6 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
   modeTabs.forEach(tab => {
     tab.addEventListener('click', () => {
       audioEngine.init();
+      currentSessionStartTime = null;
       const mode = tab.dataset.mode;
       timer.setMode(mode);
       saveCurrentState();
@@ -790,6 +815,9 @@ document.addEventListener('DOMContentLoaded', () => {
         timer.pause();
         showToast('Timer paused');
       } else {
+        if (!currentSessionStartTime) {
+          currentSessionStartTime = new Date();
+        }
         timer.start();
         showToast('Timer started');
       }
@@ -803,10 +831,12 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       setZenMode(!isZenMode);
     } else if (e.key === 'r' || e.key === 'R') {
+      currentSessionStartTime = null;
       timer.reset();
       showToast('Timer reset');
       saveCurrentState();
     } else if (e.key === 's' || e.key === 'S') {
+      currentSessionStartTime = null;
       timer.skip();
       showToast('Session skipped');
       saveCurrentState();
@@ -814,7 +844,11 @@ document.addEventListener('DOMContentLoaded', () => {
       audioEngine.init();
       masterMuteBtn.click();
     } else if (e.key === 'Escape') {
-      if (customColorPopover && !customColorPopover.classList.contains('hidden')) {
+      if (typeof hideAuthModal === 'function' && authModal && authModal.classList.contains('modal-visible')) {
+        hideAuthModal();
+      } else if (typeof hideHistoryModal === 'function' && historyModal && historyModal.classList.contains('modal-visible')) {
+        hideHistoryModal();
+      } else if (customColorPopover && !customColorPopover.classList.contains('hidden')) {
         toggleColorPopover(false);
       } else if (isZenMode) {
         setZenMode(false);
@@ -908,6 +942,519 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.visibilityState === 'visible') checkDateRollover();
   });
   window.addEventListener('focus', checkDateRollover);
+
+  // =========================================================================
+  // --- AUTHENTICATION & FIREBASE CLOUD HISTORY CONTROLLER ---
+  // =========================================================================
+  const openAuthBtn = document.getElementById('open-auth-btn');
+  const userProfileWrapper = document.getElementById('user-profile-wrapper');
+  const userProfileBtn = document.getElementById('user-profile-btn');
+  const headerUserEmail = document.getElementById('header-user-email');
+  const userDropdownMenu = document.getElementById('user-dropdown-menu');
+  const dropdownUserEmail = document.getElementById('dropdown-user-email');
+  const dropdownHistoryBtn = document.getElementById('dropdown-history-btn');
+  const dropdownSettingsBtn = document.getElementById('dropdown-settings-btn');
+  const dropdownSignoutBtn = document.getElementById('dropdown-signout-btn');
+
+  const authModal = document.getElementById('auth-modal');
+  const closeAuthModal = document.getElementById('close-auth-modal');
+  const tabSignin = document.getElementById('tab-signin');
+  const tabSignup = document.getElementById('tab-signup');
+  const authForm = document.getElementById('auth-form');
+  const authEmail = document.getElementById('auth-email');
+  const authPassword = document.getElementById('auth-password');
+  const authSubmitBtn = document.getElementById('auth-submit-btn');
+  const authSubmitText = document.getElementById('auth-submit-text');
+  const authSubmitSpinner = document.getElementById('auth-submit-spinner');
+  const authAlert = document.getElementById('auth-alert');
+
+  const firebaseConfigToggle = document.getElementById('firebase-config-toggle');
+  const firebaseConfigSection = document.getElementById('firebase-config-section');
+  const firebaseConfigToggleArrow = document.getElementById('firebase-config-toggle-arrow');
+  const cfgSnippet = document.getElementById('cfg-snippet');
+  const cfgApiKey = document.getElementById('cfg-api-key');
+  const cfgProjectId = document.getElementById('cfg-project-id');
+  const cfgSaveBtn = document.getElementById('cfg-save-btn');
+  const cfgClearBtn = document.getElementById('cfg-clear-btn');
+  const cfgTestStatus = document.getElementById('cfg-test-status');
+
+  // Study History Modal Elements
+  const historyBtn = document.getElementById('history-btn');
+  const historyModal = document.getElementById('history-modal');
+  const closeHistoryModal = document.getElementById('close-history-modal');
+  const historySyncStatus = document.getElementById('history-sync-status');
+  const historyTotalTime = document.getElementById('history-total-time');
+  const historyTotalSessions = document.getElementById('history-total-sessions');
+  const historyTodayTime = document.getElementById('history-today-time');
+  const historyOfflineBanner = document.getElementById('history-offline-banner');
+  const historyOfflineCountText = document.getElementById('history-offline-count-text');
+  const historySyncNowBtn = document.getElementById('history-sync-now-btn');
+  const historyList = document.getElementById('history-list');
+  const historyEmptyState = document.getElementById('history-empty-state');
+  const historyFilterBtns = document.querySelectorAll('.history-filter-btn');
+
+  let currentAuthMode = 'signin'; // 'signin' or 'signup'
+  let currentHistoryFilter = 'all';
+
+  // --- Modal Helpers ---
+  function showAuthModal(openConfig = false) {
+    if (!authModal) return;
+    authModal.classList.remove('modal-hidden');
+    authModal.classList.add('modal-visible');
+    hideAuthAlert();
+
+    const isConfigured = window.ConfigManager && window.ConfigManager.isConfigured();
+
+    // Populate Firebase config inputs from current configuration
+    if (window.ConfigManager) {
+      const cfg = window.ConfigManager.getConfig();
+      if (cfgApiKey) cfgApiKey.value = cfg.apiKey || '';
+      if (cfgProjectId) cfgProjectId.value = cfg.projectId || '';
+      if (cfgSnippet && (cfg.apiKey || cfg.projectId)) {
+        cfgSnippet.value = `apiKey: "${cfg.apiKey}",\nprojectId: "${cfg.projectId}",\nauthDomain: "${cfg.authDomain || ''}"`;
+      }
+    }
+
+    if (!isConfigured) {
+      showAuthAlert("ℹ️ Firebase is not connected yet. The timer is running in offline Guest Mode. Expand 'Firebase Project Settings' below to connect your project for cross-device cloud sync.", 'info');
+      if (firebaseConfigSection) {
+        firebaseConfigSection.classList.remove('hidden');
+        if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(180deg)';
+      }
+    } else if (openConfig && firebaseConfigSection) {
+      firebaseConfigSection.classList.remove('hidden');
+      if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(180deg)';
+    }
+
+    if (authEmail) authEmail.focus();
+  }
+
+  function hideAuthModal() {
+    if (!authModal) return;
+    authModal.classList.remove('modal-visible');
+    authModal.classList.add('modal-hidden');
+    hideAuthAlert();
+  }
+
+  function showAuthAlert(msg, type = 'error') {
+    if (!authAlert) return;
+    authAlert.textContent = msg;
+    if (type === 'success' || type === true) {
+      authAlert.className = 'mb-3 p-2.5 rounded-xl text-xs bg-emerald-500/15 border border-emerald-400/30 text-emerald-300';
+    } else if (type === 'info') {
+      authAlert.className = 'mb-3 p-2.5 rounded-xl text-xs bg-amber-500/15 border border-amber-400/30 text-amber-300';
+    } else {
+      authAlert.className = 'mb-3 p-2.5 rounded-xl text-xs bg-rose-500/15 border border-rose-400/30 text-rose-300';
+    }
+    authAlert.classList.remove('hidden');
+  }
+
+  function hideAuthAlert() {
+    if (authAlert) authAlert.classList.add('hidden');
+  }
+
+  function setAuthMode(mode) {
+    currentAuthMode = mode;
+    hideAuthAlert();
+    if (mode === 'signin') {
+      tabSignin.classList.add('bg-white/20', 'text-white', 'shadow-sm', 'border-white/20');
+      tabSignin.classList.remove('text-slate-400', 'border-transparent');
+      tabSignup.classList.remove('bg-white/20', 'text-white', 'shadow-sm', 'border-white/20');
+      tabSignup.classList.add('text-slate-400', 'border-transparent');
+      authSubmitText.textContent = 'Sign In to Sanctuary';
+    } else {
+      tabSignup.classList.add('bg-white/20', 'text-white', 'shadow-sm', 'border-white/20');
+      tabSignup.classList.remove('text-slate-400', 'border-transparent');
+      tabSignin.classList.remove('bg-white/20', 'text-white', 'shadow-sm', 'border-white/20');
+      tabSignin.classList.add('text-slate-400', 'border-transparent');
+      authSubmitText.textContent = 'Create Free Account';
+    }
+  }
+
+  if (tabSignin) tabSignin.addEventListener('click', () => setAuthMode('signin'));
+  if (tabSignup) tabSignup.addEventListener('click', () => setAuthMode('signup'));
+
+  if (openAuthBtn) openAuthBtn.addEventListener('click', () => showAuthModal(false));
+  if (closeAuthModal) closeAuthModal.addEventListener('click', hideAuthModal);
+
+  // Toggle Firebase project config accordion inside modal
+  if (firebaseConfigToggle) {
+    firebaseConfigToggle.addEventListener('click', () => {
+      const isHidden = firebaseConfigSection.classList.contains('hidden');
+      if (isHidden) {
+        firebaseConfigSection.classList.remove('hidden');
+        if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(180deg)';
+      } else {
+        firebaseConfigSection.classList.add('hidden');
+        if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(0deg)';
+      }
+    });
+  }
+
+  // Save Firebase Configuration Override
+  if (cfgSaveBtn) {
+    cfgSaveBtn.addEventListener('click', async () => {
+      const snippet = cfgSnippet ? cfgSnippet.value.trim() : '';
+      const apiKey = cfgApiKey ? cfgApiKey.value.trim() : '';
+      const projectId = cfgProjectId ? cfgProjectId.value.trim() : '';
+
+      try {
+        if (snippet) {
+          window.ConfigManager.saveOverride(snippet);
+        } else if (apiKey && projectId) {
+          window.ConfigManager.saveOverride({ apiKey, projectId });
+        } else {
+          throw new Error("Please enter your Firebase API Key and Project ID, or paste the config object.");
+        }
+
+        cfgTestStatus.textContent = "Configuration saved. Connecting to Firebase...";
+        cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-amber-500/15 border border-amber-400/30 text-amber-300 block";
+
+        const initialized = window.AuthManager.reinitialize();
+        if (initialized) {
+          cfgTestStatus.textContent = "✓ Connected to Firebase project successfully!";
+          cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 block";
+          showToast("🔥 Firebase connected successfully!");
+        } else {
+          cfgTestStatus.textContent = "Could not initialize Firebase. Check API Key and Project ID.";
+          cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-300 block";
+        }
+      } catch (err) {
+        cfgTestStatus.textContent = err.message || "Failed to save configuration.";
+        cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-300 block";
+      }
+    });
+  }
+
+  if (cfgClearBtn) {
+    cfgClearBtn.addEventListener('click', () => {
+      window.ConfigManager.clearOverride();
+      if (cfgSnippet) cfgSnippet.value = '';
+      if (cfgApiKey) cfgApiKey.value = '';
+      if (cfgProjectId) cfgProjectId.value = '';
+      cfgTestStatus.textContent = "Stored configuration reset to defaults.";
+      cfgTestStatus.className = "text-[10px] p-1.5 rounded-lg bg-slate-500/15 border border-white/10 text-slate-300 block";
+      window.AuthManager.reinitialize();
+      showToast("Firebase configuration cleared.");
+    });
+  }
+
+  // Auth Form Submission
+  if (authForm) {
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAuthAlert();
+
+      // Check if Firebase credentials are configured
+      if (!window.ConfigManager.isConfigured()) {
+        showAuthAlert("Firebase is not connected yet. Please enter your Firebase web app configuration under 'Firebase Project Settings' below, or continue using Guest Mode.", 'error');
+        if (firebaseConfigSection) {
+          firebaseConfigSection.classList.remove('hidden');
+          if (firebaseConfigToggleArrow) firebaseConfigToggleArrow.style.transform = 'rotate(180deg)';
+        }
+        return;
+      }
+
+      const email = authEmail.value.trim();
+      const password = authPassword.value;
+
+      if (!email || !password) {
+        showAuthAlert("Please provide both email and password.", false);
+        return;
+      }
+
+      // UI Loading state
+      authSubmitBtn.disabled = true;
+      authSubmitSpinner.classList.remove('hidden');
+      authSubmitText.textContent = currentAuthMode === 'signin' ? 'Signing In...' : 'Creating Account...';
+
+      try {
+        if (currentAuthMode === 'signin') {
+          await window.AuthManager.signIn(email, password);
+          showToast(`✨ Welcome back, ${email}!`);
+          hideAuthModal();
+        } else {
+          const res = await window.AuthManager.signUp(email, password);
+          if (res && (res.uid || res.email || res.session)) {
+            showToast(`✨ Welcome to your focus sanctuary, ${email}!`);
+            hideAuthModal();
+          } else {
+            showAuthAlert("Account created successfully! You may now sign in.", true);
+          }
+        }
+      } catch (err) {
+        showAuthAlert(err.message, false);
+      } finally {
+        authSubmitBtn.disabled = false;
+        authSubmitSpinner.classList.add('hidden');
+        authSubmitText.textContent = currentAuthMode === 'signin' ? 'Sign In to Sanctuary' : 'Create Free Account';
+      }
+    });
+  }
+
+  // User Profile Pill & Dropdown
+  if (userProfileBtn) {
+    userProfileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      userDropdownMenu.classList.toggle('hidden');
+    });
+  }
+
+  if (dropdownHistoryBtn) {
+    dropdownHistoryBtn.addEventListener('click', () => {
+      userDropdownMenu.classList.add('hidden');
+      showHistoryModal();
+    });
+  }
+
+  if (dropdownSettingsBtn) {
+    dropdownSettingsBtn.addEventListener('click', () => {
+      userDropdownMenu.classList.add('hidden');
+      showAuthModal(true);
+    });
+  }
+
+  if (dropdownSignoutBtn) {
+    dropdownSignoutBtn.addEventListener('click', async () => {
+      userDropdownMenu.classList.add('hidden');
+      await window.AuthManager.signOut();
+      showToast("Signed out. Operating in local guest mode.");
+    });
+  }
+
+  // --- STUDY HISTORY MODAL CONTROLLER ---
+  function formatSessionDate(isoString) {
+    if (!isoString) return '';
+    try {
+      const d = new Date(isoString);
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      const isYesterday = d.toDateString() === yesterday.toDateString();
+
+      const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      if (isToday) return `Today at ${timeStr}`;
+      if (isYesterday) return `Yesterday at ${timeStr}`;
+      return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
+    } catch (e) {
+      return isoString;
+    }
+  }
+
+  async function loadAndRenderHistory(filter = currentHistoryFilter) {
+    currentHistoryFilter = filter;
+    if (!historyList) return;
+
+    // Update active filter button styling
+    historyFilterBtns.forEach(btn => {
+      if (btn.dataset.filter === filter) {
+        btn.className = "history-filter-btn px-2 py-0.5 rounded-md bg-white/20 text-white font-medium border border-white/20";
+      } else {
+        btn.className = "history-filter-btn px-2 py-0.5 rounded-md text-slate-400 hover:text-slate-200 border border-transparent";
+      }
+    });
+
+    const isConfigured = window.ConfigManager && window.ConfigManager.isConfigured();
+    const isAuth = window.AuthManager && window.AuthManager.isAuthenticated();
+    const userEmail = window.AuthManager ? window.AuthManager.getUserEmail() : null;
+
+    // Fetch records
+    const res = await window.StudySync.fetchHistory(60);
+    const sessions = res.sessions || [];
+
+    // Update Sync Badge
+    if (historySyncStatus) {
+      if (isAuth) {
+        if (res.error) {
+          historySyncStatus.innerHTML = `
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span class="text-amber-300 truncate" title="Cloud database temporarily unreachable. Using local storage.">Cloud Offline • Showing Local Sessions</span>
+          `;
+        } else {
+          historySyncStatus.innerHTML = `
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 status-dot"></span>
+            <span class="text-emerald-300 truncate">Cloud Synced • ${userEmail}</span>
+          `;
+        }
+      } else if (isConfigured) {
+        historySyncStatus.innerHTML = `
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+          <span class="text-amber-300">Local Guest Storage (Sign in to sync)</span>
+        `;
+      } else {
+        historySyncStatus.innerHTML = `
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+          <span class="text-slate-300">Local Guest Storage (Cloud Sync Unconfigured)</span>
+        `;
+      }
+    }
+
+    // Calculate metrics
+    const stats = window.StudySync.calculateStats(sessions);
+    if (historyTotalTime) historyTotalTime.textContent = `${stats.totalHours} hrs`;
+    if (historyTotalSessions) historyTotalSessions.textContent = `${stats.completedFocusSessions} focus`;
+    if (historyTodayTime) historyTodayTime.textContent = `${stats.todayFocusMinutes} mins`;
+
+    // Check unsynced offline sessions
+    if (historyOfflineBanner) {
+      const offline = window.StudySync.getOfflineSessions();
+      const unsyncedCount = offline.filter(s => !s.synced).length;
+      if (isAuth && unsyncedCount > 0) {
+        historyOfflineBanner.classList.remove('hidden');
+        if (historyOfflineCountText) {
+          historyOfflineCountText.textContent = `${unsyncedCount} session(s) recorded in guest mode waiting to sync.`;
+        }
+      } else {
+        historyOfflineBanner.classList.add('hidden');
+      }
+    }
+
+    // Filter sessions
+    const filtered = sessions.filter(s => {
+      if (filter === 'focus') return s.mode === 'focus';
+      if (filter === 'break') return s.mode === 'shortBreak' || s.mode === 'longBreak';
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      historyList.innerHTML = '';
+      if (historyEmptyState) historyEmptyState.classList.remove('hidden');
+      return;
+    }
+
+    if (historyEmptyState) historyEmptyState.classList.add('hidden');
+
+    // Build session cards HTML
+    let html = '';
+    filtered.forEach(session => {
+      const isFocus = session.mode === 'focus';
+      const isLong = session.mode === 'longBreak';
+      const label = isFocus ? 'Deep Focus' : (isLong ? 'Long Break' : 'Rest Break');
+      const badgeClass = isFocus
+        ? 'bg-sky-500/15 border-sky-400/30 text-sky-300'
+        : (isLong ? 'bg-purple-500/15 border-purple-400/30 text-purple-300' : 'bg-emerald-500/15 border-emerald-400/30 text-emerald-300');
+
+      const dateStr = formatSessionDate(session.started_at);
+      const isCompleted = session.completed_naturally !== false;
+      const statusIcon = isCompleted
+        ? `<span class="inline-flex items-center gap-1 text-[10px] text-emerald-400" title="Completed naturally">
+             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+             Completed
+           </span>`
+        : `<span class="inline-flex items-center gap-1 text-[10px] text-slate-400" title="Interrupted / Reset">
+             <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+             Partial
+           </span>`;
+
+      const id = session.id || session.localId;
+
+      html += `
+        <div class="p-2.5 rounded-2xl glass-panel-subtle border border-white/5 flex items-center justify-between gap-2 hover:border-white/15 transition-all text-xs" data-session-id="${id}">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${badgeClass} shrink-0">${label}</span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-mono font-medium text-white text-[11px] sm:text-xs">${session.duration_minutes} min</span>
+                ${statusIcon}
+              </div>
+              <span class="text-[10px] text-slate-400 block truncate">${dateStr}</span>
+            </div>
+          </div>
+          <button class="delete-session-btn text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-white/5 transition-colors shrink-0" data-id="${id}" title="Remove record">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      `;
+    });
+
+    historyList.innerHTML = html;
+
+    // Attach delete listeners
+    historyList.querySelectorAll('.delete-session-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        await window.StudySync.deleteSession(id);
+        loadAndRenderHistory();
+      });
+    });
+  }
+
+  function showHistoryModal() {
+    if (!historyModal) return;
+    historyModal.classList.remove('modal-hidden');
+    historyModal.classList.add('modal-visible');
+    loadAndRenderHistory();
+  }
+
+  function hideHistoryModal() {
+    if (!historyModal) return;
+    historyModal.classList.remove('modal-visible');
+    historyModal.classList.add('modal-hidden');
+  }
+
+  if (historyBtn) historyBtn.addEventListener('click', showHistoryModal);
+  if (closeHistoryModal) closeHistoryModal.addEventListener('click', hideHistoryModal);
+
+  historyFilterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      loadAndRenderHistory(btn.dataset.filter);
+    });
+  });
+
+  if (historySyncNowBtn) {
+    historySyncNowBtn.addEventListener('click', async () => {
+      historySyncNowBtn.disabled = true;
+      historySyncNowBtn.textContent = 'Syncing...';
+      const res = await window.StudySync.syncOfflineSessions();
+      historySyncNowBtn.disabled = false;
+      historySyncNowBtn.textContent = 'Sync Now';
+      if (res && res.syncedCount > 0) {
+        showToast(`✨ Successfully synced ${res.syncedCount} session(s) to cloud!`);
+      }
+      loadAndRenderHistory();
+    });
+  }
+
+  // Close modals on clicking backdrop
+  window.addEventListener('click', (e) => {
+    if (e.target === authModal) hideAuthModal();
+    if (e.target === historyModal) hideHistoryModal();
+    if (userProfileWrapper && !userProfileWrapper.contains(e.target)) {
+      if (userDropdownMenu) userDropdownMenu.classList.add('hidden');
+    }
+  });
+
+  // Listen to Auth State Changes to update UI and trigger automatic sync
+  if (window.AuthManager) {
+    window.AuthManager.onAuthStateChange(async (event, user) => {
+      if (user) {
+        if (openAuthBtn) openAuthBtn.classList.add('hidden');
+        if (userProfileWrapper) userProfileWrapper.classList.remove('hidden');
+        if (headerUserEmail) headerUserEmail.textContent = user.email;
+        if (dropdownUserEmail) dropdownUserEmail.textContent = user.email;
+
+        // Auto-sync offline guest sessions upon sign-in
+        if (window.StudySync) {
+          const syncRes = await window.StudySync.syncOfflineSessions();
+          if (syncRes && syncRes.syncedCount > 0) {
+            showToast(`✨ Synced ${syncRes.syncedCount} offline session(s) to your cloud account!`, 4000);
+          }
+        }
+      } else {
+        if (openAuthBtn) openAuthBtn.classList.remove('hidden');
+        if (userProfileWrapper) userProfileWrapper.classList.add('hidden');
+        if (userDropdownMenu) userDropdownMenu.classList.add('hidden');
+      }
+    });
+
+    // Initialize Auth client
+    window.AuthManager.init();
+  }
 
   console.log("The Algorithmic Ambient Room initialized with restored preferences.");
 });
