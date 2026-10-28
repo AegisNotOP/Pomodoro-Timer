@@ -146,16 +146,47 @@
     
     <!-- Mode Switcher Selector Bar (Above Center Panel, Aligned with it) -->
     <nav id="mode-selector-bar" class="w-full flex items-center justify-between p-1 rounded-2xl glass-panel shadow-lg border border-white/10 gap-1 zen-transition" aria-label="Timer Modes">
-      <button data-mode="focus" class="mode-tab flex-1 py-1.5 px-2 text-[11px] sm:text-xs font-medium rounded-xl transition-all duration-300 bg-white/20 text-white shadow-inner border border-white/20 truncate">
+      <button data-mode="focus" class="mode-tab flex-1 py-1.5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-medium rounded-xl transition-all duration-300 bg-white/20 text-white shadow-inner border border-white/20 truncate">
         Focus (25m)
       </button>
-      <button data-mode="shortBreak" class="mode-tab flex-1 py-1.5 px-2 text-[11px] sm:text-xs font-medium rounded-xl transition-all duration-300 text-slate-400 hover:text-slate-200 border border-transparent truncate">
+      <button data-mode="shortBreak" class="mode-tab flex-1 py-1.5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-medium rounded-xl transition-all duration-300 text-slate-400 hover:text-slate-200 border border-transparent truncate">
         Break (5m)
       </button>
-      <button data-mode="longBreak" class="mode-tab flex-1 py-1.5 px-2 text-[11px] sm:text-xs font-medium rounded-xl transition-all duration-300 text-slate-400 hover:text-slate-200 border border-transparent truncate">
-        Long Break (15m)
+      <button data-mode="longBreak" class="mode-tab flex-1 py-1.5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-medium rounded-xl transition-all duration-300 text-slate-400 hover:text-slate-200 border border-transparent truncate">
+        Long (15m)
+      </button>
+      <button data-mode="custom" id="custom-mode-tab" class="mode-tab flex-1 py-1.5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-medium rounded-xl transition-all duration-300 text-slate-400 hover:text-slate-200 border border-transparent truncate">
+        Custom (<span id="custom-tab-duration-label">45m</span>)
       </button>
     </nav>
+
+    <!-- Custom Duration Configuration Panel (Visible when Custom mode is active) -->
+    <div id="custom-duration-panel" class="hidden w-full px-3 py-2 rounded-2xl glass-panel border border-indigo-400/30 text-xs shadow-lg transition-all duration-300">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[11px] font-medium text-indigo-300 flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>Custom Duration:</span>
+        </span>
+        <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1 bg-black/30 px-2 py-0.5 rounded-lg border border-white/10">
+            <label for="custom-hours-input" class="sr-only">Hours</label>
+            <input id="custom-hours-input" type="number" min="0" max="12" value="0" class="w-7 bg-transparent text-center text-white font-mono text-xs focus:outline-none" title="Hours (0-12)">
+            <span class="text-[10px] text-slate-400">h</span>
+            <label for="custom-minutes-input" class="sr-only">Minutes</label>
+            <input id="custom-minutes-input" type="number" min="0" max="59" value="45" class="w-7 bg-transparent text-center text-white font-mono text-xs focus:outline-none" title="Minutes (0-59)">
+            <span class="text-[10px] text-slate-400">m</span>
+          </div>
+          <button id="custom-duration-apply-btn" class="px-2.5 py-1 rounded-lg bg-indigo-500/30 hover:bg-indigo-500/40 text-indigo-200 text-[11px] font-medium border border-indigo-400/40 transition-colors whitespace-nowrap">
+            Set
+          </button>
+        </div>
+      </div>
+      <div id="custom-duration-error" class="hidden text-[10px] text-rose-300 mt-1 text-right">
+        Enter duration between 1 minute and 12 hours.
+      </div>
+    </div>
 
     <!-- Center Dashboard Panel (Uncluttered, No scrollbar!) -->
     <main id="sanctuary-dashboard" class="w-full glass-panel rounded-3xl p-4 sm:p-5 zen-transition shadow-2xl relative">
@@ -210,7 +241,7 @@
           <!-- Digital Countdown Content -->
           <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <span id="session-counter" class="text-[10px] sm:text-[11px] font-medium tracking-widest text-slate-400 uppercase mb-0.5">Cycle 1 / 4</span>
-            <span id="time-display" class="font-mono text-4xl sm:text-5xl font-bold tracking-tighter text-white drop-shadow-md">
+            <span id="time-display" class="font-mono text-4xl sm:text-5xl font-bold tracking-tighter text-white drop-shadow-md timer-time-standard">
               25:00
             </span>
             <span id="circle-mode-label" class="text-[10px] sm:text-[11px] text-slate-400/80 tracking-wider mt-1 flex items-center gap-1.5">
@@ -572,6 +603,7 @@
           <button data-filter="all" class="history-filter-btn px-2 py-0.5 rounded-md bg-white/15 text-white">All</button>
           <button data-filter="focus" class="history-filter-btn px-2 py-0.5 rounded-md text-slate-400 hover:text-slate-200">Focus</button>
           <button data-filter="break" class="history-filter-btn px-2 py-0.5 rounded-md text-slate-400 hover:text-slate-200">Breaks</button>
+          <button data-filter="custom" class="history-filter-btn px-2 py-0.5 rounded-md text-slate-400 hover:text-slate-200">Custom</button>
         </div>
       </div>
 

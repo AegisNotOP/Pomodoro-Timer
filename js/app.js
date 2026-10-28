@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Timer mode validation
-        const validModes = ['focus', 'shortBreak', 'longBreak'];
+        const validModes = ['focus', 'shortBreak', 'longBreak', 'custom'];
         const timerMode = (parsed.settings && validModes.includes(parsed.settings.timerMode))
           ? parsed.settings.timerMode
           : 'focus';
@@ -168,6 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1. Initialize Visual Canvas Engine
   const canvasEngine = new AmbientCanvasEngine('ambient-canvas');
+  window.ambientCanvasEngine = canvasEngine;
 
   // 2. Initialize Procedural Audio Engine
   const audioEngine = new AmbientAudioEngine(canvasEngine);
@@ -188,6 +189,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const modeIndicator = document.getElementById('mode-indicator');
   const circleModeText = document.getElementById('circle-mode-text');
   const todayFocusCount = document.getElementById('today-focus-count');
+
+  // Custom Timer UI Elements
+  const customTabDurationLabel = document.getElementById('custom-tab-duration-label');
+  const customDurationPanel = document.getElementById('custom-duration-panel');
+  const customHoursInput = document.getElementById('custom-hours-input');
+  const customMinutesInput = document.getElementById('custom-minutes-input');
+  const customDurationApplyBtn = document.getElementById('custom-duration-apply-btn');
+  const customDurationError = document.getElementById('custom-duration-error');
 
   // Audio Slider Elements
   const rainSlider = document.getElementById('slider-rain');
@@ -305,10 +314,116 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'Break';
       case 'longBreak':
         return 'Long Break';
+      case 'custom':
+        return 'Custom';
       default:
         return 'Focus';
     }
   }
+
+  // --- CUSTOM DURATION MANAGER ---
+  const CustomDurationManager = {
+    STORAGE_KEY: 'algorithmic_pomodoro_custom_duration',
+    load() {
+      try {
+        const raw = localStorage.getItem(this.STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            const h = Math.max(0, Math.min(12, parseInt(parsed.hours, 10) || 0));
+            const m = Math.max(0, Math.min(59, parseInt(parsed.minutes, 10) || 0));
+            const total = h * 60 + m;
+            if (total >= 1 && total <= 720) {
+              return { hours: h, minutes: m, totalMinutes: total };
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("CustomDurationManager: Error parsing stored duration:", e);
+      }
+      return { hours: 0, minutes: 45, totalMinutes: 45 };
+    },
+    save(hours, minutes) {
+      try {
+        const h = Math.max(0, Math.min(12, parseInt(hours, 10) || 0));
+        const m = Math.max(0, Math.min(59, parseInt(minutes, 10) || 0));
+        const total = Math.max(1, Math.min(720, h * 60 + m));
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify({ hours: h, minutes: m, totalMinutes: total }));
+        return total;
+      } catch (e) {
+        console.warn("CustomDurationManager: Error saving duration:", e);
+        return 45;
+      }
+    },
+    formatLabel(hours, minutes) {
+      if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+      if (hours > 0) return `${hours}h`;
+      return `${minutes}m`;
+    }
+  };
+
+  let customDurationState = CustomDurationManager.load();
+  if (customHoursInput) customHoursInput.value = customDurationState.hours;
+  if (customMinutesInput) customMinutesInput.value = customDurationState.minutes;
+  if (customTabDurationLabel) {
+    customTabDurationLabel.textContent = CustomDurationManager.formatLabel(customDurationState.hours, customDurationState.minutes);
+  }
+  timer.setCustomDuration(customDurationState.totalMinutes);
+
+  function updateCustomPanelVisibility(mode) {
+    if (!customDurationPanel) return;
+    if (mode === 'custom') {
+      customDurationPanel.classList.remove('hidden');
+    } else {
+      customDurationPanel.classList.add('hidden');
+      if (customDurationError) customDurationError.classList.add('hidden');
+    }
+  }
+
+  function applyCustomDuration() {
+    const h = parseInt(customHoursInput ? customHoursInput.value : 0, 10) || 0;
+    const m = parseInt(customMinutesInput ? customMinutesInput.value : 0, 10) || 0;
+    const total = h * 60 + m;
+
+    if (total < 1 || total > 720) {
+      if (customDurationError) customDurationError.classList.remove('hidden');
+      return;
+    }
+
+    if (customDurationError) customDurationError.classList.add('hidden');
+    customDurationState = { hours: h, minutes: m, totalMinutes: total };
+    CustomDurationManager.save(h, m);
+
+    if (customTabDurationLabel) {
+      customTabDurationLabel.textContent = CustomDurationManager.formatLabel(h, m);
+    }
+
+    timer.setCustomDuration(total);
+
+    const active = window.StudySync ? window.StudySync.getActiveSession() : null;
+    if (active && active.mode === 'custom' && !timer.isRunning) {
+      window.StudySync.updateLiveSession(active.id, { duration_minutes: total });
+    }
+
+    showToast(`Custom duration set to ${CustomDurationManager.formatLabel(h, m)} (${total} mins)`);
+  }
+
+  if (customDurationApplyBtn) {
+    customDurationApplyBtn.addEventListener('click', applyCustomDuration);
+  }
+  [customHoursInput, customMinutesInput].forEach(inp => {
+    if (inp) {
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          applyCustomDuration();
+        }
+      });
+      inp.addEventListener('input', () => {
+        if (customDurationError) customDurationError.classList.add('hidden');
+      });
+    }
+  });
 
   // --- SVG PROGRESS RING CONFIGURATION ---
   const ringRadius = 110;
@@ -324,14 +439,97 @@ document.addEventListener('DOMContentLoaded', () => {
     timerRing.style.strokeDashoffset = offset;
   }
 
+  // --- RECONCILE / RESTORE ACTIVE SESSION HELPER ---
+  function applyReconciledSession(s) {
+    if (!s) return;
+    const validModes = ['focus', 'shortBreak', 'longBreak', 'custom'];
+    const targetMode = validModes.includes(s.mode) ? s.mode : 'focus';
+
+    timer.currentMode = targetMode;
+
+    if (targetMode === 'custom') {
+      const mins = Math.max(1, Math.min(720, Math.round(Number(s.duration_minutes) || 45)));
+      timer.modes.custom = mins * 60;
+      timer.totalDuration = mins * 60;
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      customDurationState = { hours: h, minutes: m, totalMinutes: mins };
+      if (customHoursInput) customHoursInput.value = h;
+      if (customMinutesInput) customMinutesInput.value = m;
+      if (customTabDurationLabel) {
+        customTabDurationLabel.textContent = CustomDurationManager.formatLabel(h, m);
+      }
+      updateCustomPanelVisibility('custom');
+    } else {
+      timer.totalDuration = (timer.modes[targetMode] || 25 * 60);
+      updateCustomPanelVisibility(targetMode);
+    }
+
+    const elapsedSec = Math.max(0, Math.min(timer.totalDuration, Math.round(Number(s.elapsed_seconds) || 0)));
+    const remaining = Math.max(0, timer.totalDuration - elapsedSec);
+    timer.timeLeft = remaining;
+    timer.pause();
+    timer.notifyTick();
+    timer.notifyStateChange();
+  }
+
   // --- TIMER CALLBACKS ---
+  let lastLocalSaveTime = 0;
+  let lastCloudSyncTime = 0;
+
+  function updateTimeDisplay(formattedTime) {
+    if (!timeDisplay) return;
+    timeDisplay.textContent = formattedTime;
+
+    const parts = (formattedTime || '').split(':');
+    const hasHours = parts.length > 2;
+
+    if (hasHours) {
+      const hoursPart = parts[0];
+      if (hoursPart.length >= 2) {
+        // Double-digit hours: e.g. "10:45:00", "12:00:00"
+        timeDisplay.className = "font-mono font-bold text-white drop-shadow-md timer-time-hours-double";
+      } else {
+        // Single-digit hours: e.g. "1:00:00", "9:59:59"
+        timeDisplay.className = "font-mono font-bold text-white drop-shadow-md timer-time-hours-single";
+      }
+    } else {
+      // Standard MM:SS timer: e.g. "25:00", "05:00" - preserves existing large size
+      timeDisplay.className = "font-mono text-4xl sm:text-5xl font-bold tracking-tighter text-white drop-shadow-md timer-time-standard";
+    }
+  }
+
   timer.onTickCallback = (state) => {
-    timeDisplay.textContent = state.formattedTime;
+    updateTimeDisplay(state.formattedTime);
     updateProgressRing(state.progress);
     
     // Tab title formatted: "24:59 • Focus — The Algorithmic Ambient Room"
     const label = getModeLabel(state.currentMode);
     document.title = `${state.formattedTime} • ${label} — The Algorithmic Ambient Room`;
+
+    // Update live session elapsed seconds and throttle persistence
+    const active = window.StudySync ? window.StudySync.getActiveSession() : null;
+    if (active && (active.status === 'in_progress' || active.status === 'paused')) {
+      const elapsedSec = Math.max(0, Math.round(state.totalDuration - state.timeLeft));
+      active.elapsed_seconds = elapsedSec;
+      active.lastActiveTimestamp = Date.now();
+
+      const now = Date.now();
+      // Throttled local storage update: every 5 seconds
+      if (now - lastLocalSaveTime > 5000) {
+        window.StudySync.saveActiveSession(active);
+        lastLocalSaveTime = now;
+      }
+
+      // Throttled Firestore sync: every 60 seconds while continuously running (avoids spamming Firestore)
+      if (state.isRunning && now - lastCloudSyncTime > 60000) {
+        window.StudySync.updateLiveSession(active.id, { elapsed_seconds: elapsedSec }, true);
+        lastCloudSyncTime = now;
+      }
+
+      // Update active card display if history modal is open
+      updateLiveHistoryCard(active);
+    }
   };
 
   timer.onStateChangeCallback = (state) => {
@@ -384,75 +582,160 @@ document.addEventListener('DOMContentLoaded', () => {
     document.title = `${state.formattedTime} • ${label} — The Algorithmic Ambient Room`;
   };
 
-  // Track session start timestamp for study history sync
-  let currentSessionStartTime = null;
-
   // Called when a session finishes naturally
-  timer.onCompleteCallback = (completedMode, totalCompletedSessions, todayCompletedSessions) => {
+  timer.onCompleteCallback = async (completedMode, totalCompletedSessions, todayCompletedSessions) => {
+    const active = window.StudySync ? window.StudySync.getActiveSession() : null;
     const durationMinutes = Math.round(timer.totalDuration / 60);
-    const endedAt = new Date();
-    const startedAt = currentSessionStartTime || new Date(endedAt.getTime() - durationMinutes * 60000);
+    const totalElapsedSec = durationMinutes * 60;
 
-    // Save study session to Cloud / Local History
-    if (window.StudySync && typeof window.StudySync.recordSession === 'function') {
-      window.StudySync.recordSession({
+    if (active) {
+      await window.StudySync.endLiveSession(active.id, 'completed', {
+        elapsed_seconds: totalElapsedSec,
+        completed_naturally: true
+      });
+    } else if (window.StudySync && typeof window.StudySync.recordSession === 'function') {
+      await window.StudySync.recordSession({
         mode: completedMode,
         duration_minutes: durationMinutes,
-        started_at: startedAt,
-        ended_at: endedAt,
         completed_naturally: true
       });
     }
-    currentSessionStartTime = null;
 
     if (completedMode === 'focus') {
       const todayTotal = recordNaturalFocusCompletion();
       showToast(`✨ Focus session complete! Today's total: ${todayTotal} focus sessions. Time for a restful pause.`, 4500);
+    } else if (completedMode === 'custom') {
+      saveCurrentState();
+      showToast(`✨ Custom study session complete! Outstanding focus.`, 4500);
     } else {
       saveCurrentState();
       showToast(`🧘 Break finished. Ready for your next focus session?`, 4000);
     }
+
+    updateCustomPanelVisibility(timer.currentMode);
   };
 
   // --- TIMER CONTROLS: START, PAUSE, RESET, SKIP ---
-  timerStartBtn.addEventListener('click', () => {
+  timerStartBtn.addEventListener('click', async () => {
     audioEngine.init();
-    if (!timer.isRunning) {
-      if (!currentSessionStartTime) {
-        currentSessionStartTime = new Date();
+    if (timer.isRunning) return;
+
+    timerStartBtn.disabled = true;
+
+    try {
+      // Step 1: Check for any resumable session in local storage or Firestore
+      const resumable = window.StudySync && typeof window.StudySync.findResumableSession === 'function'
+        ? await window.StudySync.findResumableSession()
+        : (window.StudySync ? window.StudySync.getActiveSession() : null);
+
+      if (resumable && (resumable.status === 'paused' || resumable.status === 'in_progress')) {
+        // Step 2: Restore mode, planned duration, elapsed time, and existing record ID
+        applyReconciledSession(resumable);
+
+        const elapsedSec = Math.max(0, Math.round(timer.totalDuration - timer.timeLeft));
+
+        // Step 3: Change that same record back to "in_progress" without creating a new record
+        resumable.status = 'in_progress';
+        resumable.elapsed_seconds = elapsedSec;
+        resumable.updated_at = new Date().toISOString();
+        resumable.lastActiveTimestamp = Date.now();
+        if (window.StudySync) {
+          window.StudySync.saveActiveSession(resumable);
+          window.StudySync.upsertOfflineSession(resumable);
+          await window.StudySync.updateLiveSession(resumable.id, {
+            status: 'in_progress',
+            elapsed_seconds: elapsedSec
+          }, true);
+        }
+
+        // Step 4: Resume timer
+        timer.start();
+        showToast('Timer resumed');
+      } else {
+        // Step 5: No resumable session exists - create a fresh record
+        const durationMinutes = Math.round(timer.totalDuration / 60);
+        if (window.StudySync && typeof window.StudySync.startLiveSession === 'function') {
+          await window.StudySync.startLiveSession({
+            mode: timer.currentMode,
+            duration_minutes: durationMinutes
+          });
+        }
+        timer.start();
+        showToast('Timer started');
       }
+    } catch (err) {
+      console.error("Error starting/resuming timer:", err);
       timer.start();
-      showToast('Timer started');
+    } finally {
+      timerStartBtn.disabled = false;
     }
   });
 
-  timerPauseBtn.addEventListener('click', () => {
-    if (timer.isRunning) {
-      timer.pause();
-      showToast('Timer paused');
+  timerPauseBtn.addEventListener('click', async () => {
+    if (!timer.isRunning) return;
+    timer.pause();
+    const active = window.StudySync ? window.StudySync.getActiveSession() : null;
+    if (active) {
+      const elapsedSec = Math.max(0, Math.round(timer.totalDuration - timer.timeLeft));
+      await window.StudySync.updateLiveSession(active.id, {
+        status: 'paused',
+        elapsed_seconds: elapsedSec
+      }, true);
     }
+    showToast('Timer paused');
   });
 
-  timerResetBtn.addEventListener('click', () => {
-    currentSessionStartTime = null;
+  timerResetBtn.addEventListener('click', async () => {
+    const active = window.StudySync ? (window.StudySync.getActiveSession() || await window.StudySync.findResumableSession()) : null;
+    if (active) {
+      const elapsedSec = Math.max(0, Math.round(timer.totalDuration - timer.timeLeft));
+      await window.StudySync.endLiveSession(active.id, 'reset', {
+        elapsed_seconds: elapsedSec,
+        completed_naturally: false
+      });
+    }
     timer.reset();
     showToast('Timer reset');
     saveCurrentState();
   });
 
-  timerSkipBtn.addEventListener('click', () => {
-    currentSessionStartTime = null;
+  timerSkipBtn.addEventListener('click', async () => {
+    const active = window.StudySync ? (window.StudySync.getActiveSession() || await window.StudySync.findResumableSession()) : null;
+    if (active) {
+      const elapsedSec = Math.max(0, Math.round(timer.totalDuration - timer.timeLeft));
+      await window.StudySync.endLiveSession(active.id, 'skipped', {
+        elapsed_seconds: elapsedSec,
+        completed_naturally: false
+      });
+    }
     timer.skip();
+    updateCustomPanelVisibility(timer.currentMode);
     showToast('Session skipped');
     saveCurrentState();
   });
 
   modeTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
+    tab.addEventListener('click', async () => {
       audioEngine.init();
-      currentSessionStartTime = null;
-      const mode = tab.dataset.mode;
-      timer.setMode(mode);
+      const newMode = tab.dataset.mode;
+      if (newMode === timer.currentMode && !timer.isRunning) {
+        if (newMode === 'custom') updateCustomPanelVisibility('custom');
+        return;
+      }
+
+      const active = window.StudySync ? (window.StudySync.getActiveSession() || await window.StudySync.findResumableSession()) : null;
+      if (active && (timer.isRunning || (active.elapsed_seconds && active.elapsed_seconds > 0))) {
+        const elapsedSec = Math.max(0, Math.round(timer.totalDuration - timer.timeLeft));
+        await window.StudySync.endLiveSession(active.id, 'interrupted', {
+          elapsed_seconds: elapsedSec,
+          completed_naturally: false
+        });
+      } else if (active) {
+        window.StudySync.clearActiveSession();
+      }
+
+      timer.setMode(newMode);
+      updateCustomPanelVisibility(newMode);
       saveCurrentState();
     });
   });
@@ -812,34 +1095,24 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       audioEngine.init();
       if (timer.isRunning) {
-        timer.pause();
-        showToast('Timer paused');
+        timerPauseBtn.click();
       } else {
-        if (!currentSessionStartTime) {
-          currentSessionStartTime = new Date();
-        }
-        timer.start();
-        showToast('Timer started');
+        timerStartBtn.click();
       }
     } else if (e.key === 'p' || e.key === 'P') {
       e.preventDefault();
       if (timer.isRunning) {
-        timer.pause();
-        showToast('Timer paused');
+        timerPauseBtn.click();
       }
     } else if (e.key === 'z' || e.key === 'Z') {
       e.preventDefault();
       setZenMode(!isZenMode);
     } else if (e.key === 'r' || e.key === 'R') {
       currentSessionStartTime = null;
-      timer.reset();
-      showToast('Timer reset');
-      saveCurrentState();
+      timerResetBtn.click();
     } else if (e.key === 's' || e.key === 'S') {
       currentSessionStartTime = null;
-      timer.skip();
-      showToast('Session skipped');
-      saveCurrentState();
+      timerSkipBtn.click();
     } else if (e.key === 'm' || e.key === 'M') {
       audioEngine.init();
       masterMuteBtn.click();
@@ -870,8 +1143,9 @@ document.addEventListener('DOMContentLoaded', () => {
   timer.setTodayFocusSessions(appState.dailyFocus.count);
   timer.setCompletedFocusSessions(appState.settings.completedSessions);
 
-  // 2. Restore Timer Mode (focus, shortBreak, longBreak)
+  // 2. Restore Timer Mode (focus, shortBreak, longBreak, custom)
   timer.setMode(appState.settings.timerMode);
+  updateCustomPanelVisibility(appState.settings.timerMode);
 
   // 3. Restore Audio Levels and Mute State
   const savedRain = appState.settings.audio.rainVolume;
@@ -935,6 +1209,30 @@ document.addEventListener('DOMContentLoaded', () => {
   // Trigger initial tick & state render
   timer.notifyTick();
   timer.notifyStateChange();
+
+  // Reconcile any in-progress or paused active session on startup / reload
+  if (window.StudySync && typeof window.StudySync.reconcileActiveSession === 'function') {
+    window.StudySync.reconcileActiveSession().then(res => {
+      if (res && res.status === 'resumable' && res.session) {
+        applyReconciledSession(res.session);
+        showToast('Restored previous session in paused state. Click Start to resume.', 5000);
+      } else if (res && res.status === 'interrupted') {
+        showToast('Previous in-progress session was interrupted and recorded in history.', 4000);
+      }
+    });
+  }
+
+  // Persist latest active session elapsed time synchronously on beforeunload
+  window.addEventListener('beforeunload', () => {
+    const active = window.StudySync ? window.StudySync.getActiveSession() : null;
+    if (active && (timer.isRunning || active.status === 'in_progress')) {
+      const elapsedSec = Math.max(0, Math.round(timer.totalDuration - timer.timeLeft));
+      active.elapsed_seconds = elapsedSec;
+      active.status = 'paused';
+      active.lastActiveTimestamp = Date.now();
+      window.StudySync.saveActiveSession(active);
+    }
+  });
 
   // Active date rollover watcher: updates display automatically when midnight passes even if page is idle
   setInterval(checkDateRollover, 30000);
@@ -1142,6 +1440,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updateLiveHistoryCard(active) {
+    if (!historyModal || !historyModal.classList.contains('modal-visible') || !active) return;
+    const card = document.querySelector(`[data-session-id="${active.id}"]`);
+    if (!card) return;
+
+    const elapsedEl = card.querySelector('.live-elapsed-time');
+    if (elapsedEl) {
+      const totalSec = active.elapsed_seconds || 0;
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      elapsedEl.textContent = `${m}m ${String(s).padStart(2, '0')}s elapsed`;
+    }
+    const statusEl = card.querySelector('.live-status-pill');
+    if (statusEl) {
+      const isPaused = active.status === 'paused';
+      statusEl.className = `live-status-pill inline-flex items-center gap-1 text-[10px] ${isPaused ? 'text-amber-400 font-medium' : 'text-emerald-400 font-semibold'}`;
+      statusEl.innerHTML = isPaused
+        ? `<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Paused`
+        : `<span class="w-2 h-2 rounded-full bg-emerald-400 status-dot"></span> In Progress`;
+    }
+  }
+
   async function loadAndRenderHistory(filter = currentHistoryFilter) {
     currentHistoryFilter = filter;
     if (!historyList) return;
@@ -1214,6 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const filtered = sessions.filter(s => {
       if (filter === 'focus') return s.mode === 'focus';
       if (filter === 'break') return s.mode === 'shortBreak' || s.mode === 'longBreak';
+      if (filter === 'custom') return s.mode === 'custom';
       return true;
     });
 
@@ -1228,44 +1549,113 @@ document.addEventListener('DOMContentLoaded', () => {
     // Build session cards HTML
     let html = '';
     filtered.forEach(session => {
-      const isFocus = session.mode === 'focus';
-      const isLong = session.mode === 'longBreak';
-      const label = isFocus ? 'Deep Focus' : (isLong ? 'Long Break' : 'Rest Break');
-      const badgeClass = isFocus
-        ? 'bg-sky-500/15 border-sky-400/30 text-sky-300'
-        : (isLong ? 'bg-purple-500/15 border-purple-400/30 text-purple-300' : 'bg-emerald-500/15 border-emerald-400/30 text-emerald-300');
+      let label = 'Deep Focus';
+      let badgeClass = 'bg-sky-500/15 border-sky-400/30 text-sky-300';
+
+      if (session.mode === 'custom') {
+        label = 'Custom';
+        badgeClass = 'bg-indigo-500/15 border-indigo-400/30 text-indigo-300';
+      } else if (session.mode === 'longBreak') {
+        label = 'Long Break';
+        badgeClass = 'bg-purple-500/15 border-purple-400/30 text-purple-300';
+      } else if (session.mode === 'shortBreak') {
+        label = 'Rest Break';
+        badgeClass = 'bg-emerald-500/15 border-emerald-400/30 text-emerald-300';
+      }
 
       const dateStr = formatSessionDate(session.started_at);
-      const isCompleted = session.completed_naturally !== false;
-      const statusIcon = isCompleted
-        ? `<span class="inline-flex items-center gap-1 text-[10px] text-emerald-400" title="Completed naturally">
-             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-             Completed
-           </span>`
-        : `<span class="inline-flex items-center gap-1 text-[10px] text-slate-400" title="Interrupted / Reset">
-             <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-             Partial
-           </span>`;
+      const isOngoing = session.status === 'in_progress' || session.status === 'paused';
+      const isPaused = session.status === 'paused';
+
+      let statusBadge = '';
+      if (session.status === 'in_progress') {
+        statusBadge = `<span class="live-status-pill inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold" title="In Progress">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 status-dot"></span>
+          In Progress
+        </span>`;
+      } else if (session.status === 'paused') {
+        statusBadge = `<span class="live-status-pill inline-flex items-center gap-1 text-[10px] text-amber-400 font-medium" title="Paused">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+          Paused
+        </span>`;
+      } else if (session.status === 'completed' || (session.completed_naturally && !session.status)) {
+        statusBadge = `<span class="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium" title="Completed naturally">
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          Completed
+        </span>`;
+      } else if (session.status === 'interrupted') {
+        statusBadge = `<span class="inline-flex items-center gap-1 text-[10px] text-rose-300" title="Interrupted">
+          <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+          Interrupted
+        </span>`;
+      } else if (session.status === 'reset') {
+        statusBadge = `<span class="inline-flex items-center gap-1 text-[10px] text-slate-400" title="Reset">
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+          Reset
+        </span>`;
+      } else if (session.status === 'skipped') {
+        statusBadge = `<span class="inline-flex items-center gap-1 text-[10px] text-amber-400/80" title="Skipped">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500/80"></span>
+          Skipped
+        </span>`;
+      } else {
+        statusBadge = `<span class="inline-flex items-center gap-1 text-[10px] text-slate-400" title="Partial">
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+          Partial
+        </span>`;
+      }
+
+      let durationDisplay = '';
+      if (isOngoing) {
+        const totalSec = session.elapsed_seconds || 0;
+        const m = Math.floor(totalSec / 60);
+        const s = totalSec % 60;
+        durationDisplay = `
+          <div class="flex items-center gap-1.5">
+            <span class="font-mono font-medium text-white text-[11px] sm:text-xs">${session.duration_minutes}m planned</span>
+            <span class="text-slate-500">•</span>
+            <span class="live-elapsed-time font-mono text-emerald-300 text-[10px] sm:text-[11px]">${m}m ${String(s).padStart(2, '0')}s elapsed</span>
+          </div>
+        `;
+      } else if (session.status === 'completed' || (session.completed_naturally && !session.status)) {
+        durationDisplay = `
+          <span class="font-mono font-medium text-white text-[11px] sm:text-xs">${session.duration_minutes} min</span>
+        `;
+      } else {
+        const elapsedM = Math.max(0, Math.round((session.elapsed_seconds || 0) / 60));
+        durationDisplay = `
+          <div class="flex items-center gap-1.5">
+            <span class="font-mono font-medium text-white text-[11px] sm:text-xs">${elapsedM}m elapsed</span>
+            <span class="text-[10px] text-slate-500">(${session.duration_minutes}m planned)</span>
+          </div>
+        `;
+      }
 
       const id = session.id || session.localId;
+      const cardBorder = isOngoing
+        ? (isPaused ? 'border-amber-500/40 bg-amber-500/5' : 'border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.1)]')
+        : 'border-white/5 glass-panel-subtle';
 
       html += `
-        <div class="p-2.5 rounded-2xl glass-panel-subtle border border-white/5 flex items-center justify-between gap-2 hover:border-white/15 transition-all text-xs" data-session-id="${id}">
+        <div class="p-2.5 rounded-2xl ${cardBorder} border flex items-center justify-between gap-2 hover:border-white/15 transition-all text-xs" data-session-id="${id}">
           <div class="flex items-center gap-2.5 min-w-0">
             <span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${badgeClass} shrink-0">${label}</span>
             <div class="min-w-0">
-              <div class="flex items-center gap-2">
-                <span class="font-mono font-medium text-white text-[11px] sm:text-xs">${session.duration_minutes} min</span>
-                ${statusIcon}
+              <div class="flex items-center gap-2 flex-wrap">
+                ${durationDisplay}
+                ${statusBadge}
               </div>
               <span class="text-[10px] text-slate-400 block truncate">${dateStr}</span>
             </div>
           </div>
+          ${!isOngoing ? `
           <button class="delete-session-btn text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-white/5 transition-colors shrink-0" data-id="${id}" title="Remove record">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-          </button>
+          </button>` : `
+          <span class="text-[10px] text-emerald-400/80 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 shrink-0 font-medium">Active</span>
+          `}
         </div>
       `;
     });
@@ -1342,6 +1732,14 @@ document.addEventListener('DOMContentLoaded', () => {
           const syncRes = await window.StudySync.syncOfflineSessions();
           if (syncRes && syncRes.syncedCount > 0) {
             showToast(`✨ Synced ${syncRes.syncedCount} offline session(s) to your cloud account!`, 4000);
+          }
+
+          // If timer is not running, reconcile any resumable session from the cloud or local storage
+          if (!timer.isRunning && typeof window.StudySync.reconcileActiveSession === 'function') {
+            const res = await window.StudySync.reconcileActiveSession();
+            if (res && res.status === 'resumable' && res.session) {
+              applyReconciledSession(res.session);
+            }
           }
         }
       } else {

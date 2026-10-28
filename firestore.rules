@@ -4,28 +4,34 @@ rules_version = '2';
 // Assumed Data Model
 // ===============================================================
 //
-// This security rules file assumes the following data structures:
+// This security rules file assumes the following data structure:
 //
 // Collection: /users/{userId}/study_sessions/{sessionId}
 // Document ID: {sessionId} (auto-generated or client UUID string)
-// Scope: User-isolated Pomodoro focus & break session logs
+// Scope: User-isolated Pomodoro focus, custom, & break session logs
 //
 // Fields:
-//   - userId: string (required, immutable, must strictly match request.auth.uid)
-//   - mode: string (required, must be one of 'focus', 'shortBreak', 'longBreak')
+//   - userId: string (required, immutable, must strictly match request.auth.uid and path)
+//   - mode: string (required, must be one of 'focus', 'shortBreak', 'longBreak', 'custom')
 //   - duration_minutes: int (required, integer >= 0, max 10080 minutes / 7 days)
 //   - started_at: timestamp or ISO 8601 string (required)
-//   - ended_at: timestamp or ISO 8601 string (required)
+//   - ended_at: timestamp or ISO 8601 string or null (optional/nullable while in_progress/paused; required valid date/timestamp when completed, interrupted, reset, skipped)
 //   - completed_naturally: bool (required)
+//   - status: string (optional, must be one of 'in_progress', 'paused', 'completed', 'interrupted', 'reset', 'skipped')
+//   - elapsed_seconds: int (optional, integer >= 0 and <= 604800 / 7 days)
 //   - notes: string (optional, up to 500 characters)
 //   - created_at: timestamp or ISO 8601 string (optional, immutable once written)
+//   - updated_at: timestamp or ISO 8601 string (optional)
 //
 // Access Control & Security Guarantees:
 //   - User Isolation: Only the authenticated owner (request.auth.uid == userId)
 //     can read (get & list), create, update, or delete study sessions.
 //   - Schema Validation: Strict field whitelist, type enforcement, and bounds checking.
 //   - Validator Pattern: Full schema validation runs on both create and update.
+//   - State Machine: Enforces valid study session progression (in_progress <-> paused -> terminal).
+//   - Terminal Lockdown: Finished study sessions cannot be transitioned back to ongoing states.
 //   - Immutable Fields: userId and created_at cannot be tampered with on update.
+//   - Resource Exhaustion / DoS Prevention: Explicit size bounds on all string and numeric fields.
 //   - Default Deny: All unmatched paths and unauthenticated access are denied.
 // ===============================================================
 
@@ -75,6 +81,39 @@ service cloud.firestore {
               val.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}.*)?$'));
     }
 
+    // ===============================================================
+    // Study Sessions Domain Validation & State Machine
+    // ===============================================================
+
+    // Validate ended_at field requirements:
+    // - While session is ongoing ('status' is 'in_progress' or 'paused'): ended_at can be omitted, null, or a valid timestamp/date string.
+    // - When session is terminal ('completed', 'interrupted', 'reset', 'skipped') or legacy: ended_at is strictly required, non-null, and a valid timestamp/date string.
+    function isValidEndedAt(data) {
+      let isOngoing = ('status' in data) && (data.status == 'in_progress' || data.status == 'paused');
+      return (isOngoing && (!('ended_at' in data) || data.ended_at == null || isValidDateOrTimestamp(data.ended_at))) ||
+             (!isOngoing && ('ended_at' in data) && data.ended_at != null && isValidDateOrTimestamp(data.ended_at));
+    }
+
+    // Validate state machine transitions for study sessions on update:
+    // - Legacy records without status may transition to any valid status or keep status omitted.
+    // - Existing status cannot be deleted once set.
+    // - 'in_progress' can transition to: 'in_progress', 'paused', 'completed', 'interrupted', 'reset', 'skipped'.
+    // - 'paused' can transition to: 'paused', 'in_progress', 'completed', 'interrupted', 'reset', 'skipped'.
+    // - Terminal states ('completed', 'interrupted', 'reset', 'skipped') cannot transition to any other status.
+    function isValidStatusTransition() {
+      let prevHasStatus = 'status' in resource.data;
+      let newHasStatus = 'status' in request.resource.data;
+
+      return (!prevHasStatus) ||
+             (newHasStatus && (
+               request.resource.data.status == resource.data.status ||
+               (resource.data.status == 'in_progress' &&
+                request.resource.data.status in ['paused', 'completed', 'interrupted', 'reset', 'skipped']) ||
+               (resource.data.status == 'paused' &&
+                request.resource.data.status in ['in_progress', 'completed', 'interrupted', 'reset', 'skipped'])
+             ));
+    }
+
     // Domain validator function for study session documents
     // CRITICAL: Used in both create and update operations to eliminate the Update Bypass vulnerability
     function isValidStudySession(data, userId) {
@@ -85,42 +124,57 @@ service cloud.firestore {
                'started_at',
                'ended_at',
                'completed_naturally',
+               'status',
+               'elapsed_seconds',
                'notes',
-               'created_at'
+               'created_at',
+               'updated_at'
              ]) &&
              hasRequiredFields([
                'userId',
                'mode',
                'duration_minutes',
                'started_at',
-               'ended_at',
                'completed_naturally'
              ]) &&
              // userId validation: must be string, match path userId, and match authenticated user UID
              data.userId is string &&
              data.userId == userId &&
              data.userId == request.auth.uid &&
-             // mode validation: strictly one of the 3 supported Pomodoro session modes
+             // mode validation: strictly one of the 4 supported session modes
              data.mode is string &&
-             data.mode in ['focus', 'shortBreak', 'longBreak'] &&
+             data.mode in ['focus', 'shortBreak', 'longBreak', 'custom'] &&
              // duration_minutes validation: non-negative integer with DoS ceiling (max 7 days)
              data.duration_minutes is int &&
              data.duration_minutes >= 0 &&
              data.duration_minutes <= 10080 &&
-             // started_at and ended_at validation: valid timestamp or ISO date string
+             // started_at validation: valid timestamp or ISO date string
              isValidDateOrTimestamp(data.started_at) &&
-             isValidDateOrTimestamp(data.ended_at) &&
+             // ended_at validation: null/omitted/valid while ongoing; required valid date/timestamp when finished
+             isValidEndedAt(data) &&
              // completed_naturally validation: boolean flag
              data.completed_naturally is bool &&
+             // status validation (optional): one of the 6 supported life-cycle statuses
+             (!('status' in data) ||
+              (data.status is string &&
+               data.status in ['in_progress', 'paused', 'completed', 'interrupted', 'reset', 'skipped'])) &&
+             // elapsed_seconds validation (optional): integer >= 0 and <= 604800 (7 days in seconds)
+             (!('elapsed_seconds' in data) ||
+              (data.elapsed_seconds is int &&
+               data.elapsed_seconds >= 0 &&
+               data.elapsed_seconds <= 604800)) &&
              // notes validation (optional): string limited to 500 characters
              (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
              // created_at validation (optional): timestamp or ISO date string if supplied
-             (!('created_at' in data) || isValidDateOrTimestamp(data.created_at));
+             (!('created_at' in data) || isValidDateOrTimestamp(data.created_at)) &&
+             // updated_at validation (optional): timestamp or ISO date string if supplied
+             (!('updated_at' in data) || isValidDateOrTimestamp(data.updated_at));
     }
 
-    // Verify immutability of fields during updates
+    // Verify immutability of fields during session updates
     function areImmutableFieldsPreserved() {
       return areImmutableFieldsUnchanged(['userId']) &&
+             request.resource.data.userId == resource.data.userId &&
              (!('created_at' in resource.data) ||
               ('created_at' in request.resource.data && request.resource.data.created_at == resource.data.created_at));
     }
@@ -145,11 +199,12 @@ service cloud.firestore {
       allow create: if isOwner(userId) &&
                        isValidStudySession(request.resource.data, userId);
 
-      // Update: Users can only update their own existing sessions, preserving immutable fields and schema validity
+      // Update: Users can only update their own existing sessions, preserving immutable fields, valid status transitions, and schema validity
       allow update: if isOwner(userId) &&
                        isDocOwner() &&
                        isValidStudySession(request.resource.data, userId) &&
-                       areImmutableFieldsPreserved();
+                       areImmutableFieldsPreserved() &&
+                       isValidStatusTransition();
 
       // Delete: Users can only delete their own study sessions
       allow delete: if isOwner(userId) && isDocOwner();

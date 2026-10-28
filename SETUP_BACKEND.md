@@ -92,9 +92,9 @@ Firebase Authentication only accepts requests originating from approved domains.
 4. Click **Publish**.
 
 #### What These Rules Guarantee:
-- **Strict User Isolation**: All records live under `/users/{userId}/study_sessions/{sessionId}`. Read, write, and delete permissions are granted strictly when `request.auth.uid == userId`.
-- **Validation**: Enforces non-negative `duration_minutes`, valid timestamps, and allowed modes (`'focus'`, `'shortBreak'`, `'longBreak'`).
-- **Immutability**: Prevents tampering with ownership (`userId`) or creation timestamps.
+- **Strict User Isolation**: Study sessions live under `/users/{userId}/study_sessions/{sessionId}`. Read, write, and delete permissions are granted strictly when `request.auth.uid == userId`.
+- **Validation**: Enforces non-negative `duration_minutes`, `elapsed_seconds` bounds, valid timestamps, session life-cycle statuses (`in_progress`, `paused`, `completed`, `interrupted`, `reset`, `skipped`), and allowed modes (`'focus'`, `'shortBreak'`, `'longBreak'`, `'custom'`).
+- **Immutability & State Transitions**: Prevents tampering with ownership (`userId`) or creation timestamps, while enforcing legitimate forward progression of study sessions.
 - **Default Deny**: Closes all other paths to unauthorized access.
 
 ---

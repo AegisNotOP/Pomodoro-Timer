@@ -173,6 +173,79 @@ input[type="range"]::-moz-range-thumb:hover {
   transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.6s ease;
 }
 
+/* Timer Display Typography Modes: keeps long durations inside the circular ring with comfortable padding */
+#time-display {
+  display: inline-block;
+  text-align: center;
+  max-width: 100%;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: font-size 0.2s cubic-bezier(0.16, 1, 0.3, 1), letter-spacing 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Default / MM:SS timer format (e.g. 25:00) - retains existing large size */
+#time-display.timer-time-standard {
+  font-size: 2.25rem; /* text-4xl: 36px */
+  letter-spacing: -0.05em; /* tracking-tighter */
+  line-height: 1;
+}
+
+@media (min-width: 640px) {
+  #time-display.timer-time-standard {
+    font-size: 3rem; /* sm:text-5xl: 48px */
+    letter-spacing: -0.05em;
+    line-height: 1;
+  }
+}
+
+/* Single-digit hours format (e.g. 1:00:00 to 9:59:59, 7 characters) */
+#time-display.timer-time-hours-single {
+  font-size: 1.625rem; /* 26px */
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+@media (min-width: 640px) {
+  #time-display.timer-time-hours-single {
+    font-size: 2.125rem; /* 34px */
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+}
+
+/* Double-digit hours format (e.g. 10:45:00, 12:00:00, 8 characters) */
+#time-display.timer-time-hours-double {
+  font-size: 1.5rem; /* 24px */
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+@media (min-width: 640px) {
+  #time-display.timer-time-hours-double {
+    font-size: 1.9375rem; /* 31px */
+    letter-spacing: -0.045em;
+    line-height: 1;
+  }
+}
+
+/* Generic hours fallback */
+#time-display.timer-time-hours {
+  font-size: 1.5rem;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+@media (min-width: 640px) {
+  #time-display.timer-time-hours {
+    font-size: 1.9375rem;
+    letter-spacing: -0.045em;
+    line-height: 1;
+  }
+}
+
 /* Floating Status Indicator */
 .status-dot {
   position: relative;

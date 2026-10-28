@@ -12,7 +12,8 @@ class PomodoroTimer {
     this.modes = {
       focus: 25 * 60,
       shortBreak: 5 * 60,
-      longBreak: 15 * 60
+      longBreak: 15 * 60,
+      custom: 45 * 60
     };
 
     this.currentMode = 'focus';
@@ -56,12 +57,22 @@ class PomodoroTimer {
   }
 
   setCustomDuration(minutes) {
-    if (minutes < 1 || minutes > 120) return;
+    const mins = Math.max(1, Math.min(720, Math.round(Number(minutes) || 45)));
     this.pause();
-    this.modes[this.currentMode] = minutes * 60;
-    this.totalDuration = minutes * 60;
-    this.timeLeft = this.totalDuration;
+    this.modes.custom = mins * 60;
+    if (this.currentMode === 'custom') {
+      this.totalDuration = this.modes.custom;
+      this.timeLeft = this.totalDuration;
+      this.notifyTick();
+      this.notifyStateChange();
+    }
+    return mins;
+  }
+
+  setTimeLeft(seconds) {
+    this.timeLeft = Math.max(0, Math.min(this.totalDuration, Number(seconds) || 0));
     this.notifyTick();
+    this.notifyStateChange();
   }
 
   toggle() {
@@ -104,8 +115,11 @@ class PomodoroTimer {
     this.pause();
     // Skipping a focus session advances to short break without counting as completed.
     // Long breaks are only awarded upon naturally completing the 4th session of a cycle.
+    // Skipping a custom session resets it to its configured duration without completing.
     if (this.currentMode === 'focus') {
       this.setMode('shortBreak');
+    } else if (this.currentMode === 'custom') {
+      this.reset();
     } else {
       this.setMode('focus');
     }
@@ -128,6 +142,7 @@ class PomodoroTimer {
     this.pause();
     const completedMode = this.currentMode;
 
+    // Only naturally completed focus sessions count toward completed focus totals
     if (completedMode === 'focus') {
       this.completedFocusSessions++;
       this.todayFocusSessions++;
@@ -150,14 +165,24 @@ class PomodoroTimer {
       } else {
         this.setMode('shortBreak');
       }
+    } else if (completedMode === 'custom') {
+      // Keep in custom mode ready for next cycle
+      this.timeLeft = this.totalDuration;
+      this.notifyTick();
+      this.notifyStateChange();
     } else {
       this.setMode('focus');
     }
   }
 
   getFormattedTime() {
-    const minutes = Math.floor(this.timeLeft / 60);
-    const seconds = Math.floor(this.timeLeft % 60);
+    const totalSec = Math.max(0, Math.floor(this.timeLeft));
+    const hours = Math.floor(totalSec / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = totalSec % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
 
