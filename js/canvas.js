@@ -82,9 +82,33 @@ class AmbientCanvasEngine {
     this.time = 0;
     this.audioPulse = 0;
 
+    // Scenic Background Mode: 'ocean', 'clouds', 'forest', or 'sanctuary'
+    this.currentScene = 'ocean';
+
+    // Reduced Motion Preference Detection
+    this.isReducedMotion = false;
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+      this.isReducedMotion = media.matches;
+      if (media.addEventListener) {
+        media.addEventListener('change', (e) => {
+          this.isReducedMotion = e.matches;
+        });
+      }
+    }
+
     // Spatial Layout Objects
     this.seatingNodes = [];
     this.particles = [];
+
+    // Scenic Background Objects
+    this.stars = [];
+    this.cloudBanks = [];
+    this.forestPines = [];
+    this.forestGodRays = [];
+    this.fireflies = [];
+    this.oceanMotes = [];
+    this.sunsetMotes = [];
     
     this.init();
   }
@@ -115,6 +139,7 @@ class AmbientCanvasEngine {
 
     this.createSeatingNodes();
     this.createParticles();
+    this.createScenicElements();
     this.animate = this.animate.bind(this);
     requestAnimationFrame(this.animate);
   }
@@ -131,6 +156,171 @@ class AmbientCanvasEngine {
 
     this.ctx.scale(this.dpr, this.dpr);
     this.createSeatingNodes();
+    this.createScenicElements();
+  }
+
+  createScenicElements() {
+    this.createStars();
+    this.createCloudBanks();
+    this.createForest();
+    this.createFireflies();
+    this.createOceanMotes();
+    this.createSunsetMotes();
+  }
+
+  createStars() {
+    this.stars = [];
+    const count = Math.floor(Math.min(this.width * 0.05, 55));
+    for (let i = 0; i < count; i++) {
+      this.stars.push({
+        x: Math.random() * this.width,
+        y: Math.random() * (this.height * 0.55),
+        radius: Math.random() * 1.4 + 0.6,
+        baseAlpha: Math.random() * 0.5 + 0.2,
+        twinkleSpeed: Math.random() * 2 + 0.8,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  createCloudBanks() {
+    this.cloudBanks = [];
+    const layers = [
+      { yFrac: 0.18, speed: 0.035, baseAlpha: 0.18, scale: 0.75, count: 5 },
+      { yFrac: 0.32, speed: 0.055, baseAlpha: 0.24, scale: 0.95, count: 6 },
+      { yFrac: 0.46, speed: 0.08, baseAlpha: 0.32, scale: 1.15, count: 5 },
+      { yFrac: 0.60, speed: 0.11, baseAlpha: 0.38, scale: 1.35, count: 4 }
+    ];
+
+    layers.forEach((layer, layerIdx) => {
+      const clouds = [];
+      const spacing = (this.width + 600) / layer.count;
+      for (let i = 0; i < layer.count; i++) {
+        const puffCount = 5 + Math.floor(Math.random() * 4);
+        const puffs = [];
+        const baseR = (35 + Math.random() * 25) * layer.scale;
+
+        for (let p = 0; p < puffCount; p++) {
+          puffs.push({
+            ox: (p - puffCount / 2) * (baseR * 0.55) + (Math.random() - 0.5) * 15,
+            oy: (Math.random() - 0.5) * (baseR * 0.35),
+            r: baseR * (0.65 + Math.random() * 0.5)
+          });
+        }
+
+        clouds.push({
+          x: i * spacing + (Math.random() - 0.5) * 80,
+          y: this.height * layer.yFrac + (Math.random() - 0.5) * 25,
+          speed: layer.speed * (0.85 + Math.random() * 0.3),
+          alpha: layer.baseAlpha,
+          layerIndex: layerIdx,
+          puffs
+        });
+      }
+      this.cloudBanks.push(clouds);
+    });
+  }
+
+  createForest() {
+    this.forestPines = [];
+    const w = this.width;
+    const h = this.height;
+
+    const midCount = Math.floor(Math.max(22, w / 35));
+    for (let i = 0; i < midCount; i++) {
+      const x = (i / midCount) * w + (Math.random() - 0.5) * 15;
+      const height = (70 + Math.random() * 60) * Math.min(1.2, Math.max(0.7, h / 700));
+      const width = height * (0.4 + Math.random() * 0.15);
+      this.forestPines.push({
+        layer: 'mid',
+        x,
+        baseY: h * 0.68 + (Math.sin(i * 0.5) * 15),
+        height,
+        width,
+        tiers: 4 + Math.floor(Math.random() * 2),
+        color: '#03140e'
+      });
+    }
+
+    const foreCount = Math.floor(Math.max(15, w / 60));
+    for (let i = 0; i < foreCount; i++) {
+      const x = (i / foreCount) * w + (Math.random() - 0.5) * 20;
+      const height = (110 + Math.random() * 90) * Math.min(1.3, Math.max(0.75, h / 700));
+      const width = height * (0.42 + Math.random() * 0.16);
+      this.forestPines.push({
+        layer: 'fore',
+        x,
+        baseY: h * 0.8 + (Math.sin(i * 0.4) * 20),
+        height,
+        width,
+        tiers: 5 + Math.floor(Math.random() * 2),
+        color: '#020b07'
+      });
+    }
+
+    this.forestPines.sort((a, b) => a.baseY - b.baseY);
+
+    this.forestGodRays = [
+      { xFrac: 0.25, width: 70, angle: 0.42, alpha: 0.04, phase: 0 },
+      { xFrac: 0.45, width: 100, angle: 0.45, alpha: 0.05, phase: 1.8 },
+      { xFrac: 0.72, width: 85, angle: 0.40, alpha: 0.045, phase: 3.5 },
+      { xFrac: 0.88, width: 60, angle: 0.38, alpha: 0.035, phase: 5.0 }
+    ];
+  }
+
+  createFireflies() {
+    this.fireflies = [];
+    const count = 32;
+    for (let i = 0; i < count; i++) {
+      this.fireflies.push({
+        baseX: Math.random() * this.width,
+        baseY: this.height * (0.35 + Math.random() * 0.55),
+        ampX: 20 + Math.random() * 35,
+        ampY: 15 + Math.random() * 25,
+        freqX: 0.5 + Math.random() * 0.5,
+        freqY: 0.6 + Math.random() * 0.6,
+        phaseX: Math.random() * Math.PI * 2,
+        phaseY: Math.random() * Math.PI * 2,
+        pulseSpeed: 1.5 + Math.random() * 2,
+        pulsePhase: Math.random() * Math.PI * 2,
+        radius: 1.5 + Math.random() * 1.5,
+        isGolden: Math.random() > 0.45
+      });
+    }
+  }
+
+  createOceanMotes() {
+    this.oceanMotes = [];
+    const count = 28;
+    for (let i = 0; i < count; i++) {
+      this.oceanMotes.push({
+        x: Math.random() * this.width,
+        y: this.height * 0.48 + Math.random() * (this.height * 0.52),
+        vy: -0.2 - Math.random() * 0.25,
+        vx: (Math.random() - 0.5) * 0.2,
+        radius: Math.random() * 1.8 + 0.6,
+        baseAlpha: Math.random() * 0.4 + 0.15,
+        sineFreq: Math.random() * 0.02 + 0.005,
+        sineOffset: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  createSunsetMotes() {
+    this.sunsetMotes = [];
+    const count = 25;
+    for (let i = 0; i < count; i++) {
+      this.sunsetMotes.push({
+        x: Math.random() * this.width,
+        y: this.height * 0.3 + Math.random() * (this.height * 0.65),
+        vy: -0.1 - Math.random() * 0.2,
+        vx: 0.1 + Math.random() * 0.25,
+        radius: Math.random() * 2 + 0.7,
+        baseAlpha: Math.random() * 0.4 + 0.15,
+        sineFreq: Math.random() * 0.02 + 0.005,
+        sineOffset: Math.random() * Math.PI * 2
+      });
+    }
   }
 
   createSeatingNodes() {
@@ -371,13 +561,21 @@ class AmbientCanvasEngine {
     };
   }
 
+  setScene(scene) {
+    const valid = ['ocean', 'clouds', 'forest', 'sanctuary'];
+    if (valid.includes(scene)) {
+      this.currentScene = scene;
+    }
+  }
+
   update(dt) {
-    this.time += dt * 0.001;
+    const effectiveDt = this.isReducedMotion ? 0 : dt;
+    this.time += effectiveDt * 0.001;
 
     // Determine target palette state
     let targetState;
     if (this.paletteMode === 'auto') {
-      this.autoProgress += dt * this.shiftSpeed;
+      this.autoProgress += effectiveDt * this.shiftSpeed;
       const count = this.palettes.length;
       const p = ((this.autoProgress % count) + count) % count;
       const i1 = Math.floor(p);
@@ -393,7 +591,6 @@ class AmbientCanvasEngine {
     }
 
     // Smooth exponential blend from current live state to target state
-    // Prevents any abrupt jumps when switching modes or when auto cycle loops
     const blendFactor = Math.min(1, 1 - Math.exp(-dt * 0.004));
     this.currentState = this.interpolatePalettes(this.currentState, targetState, blendFactor);
     this.currentState.name = targetState.name;
@@ -401,17 +598,57 @@ class AmbientCanvasEngine {
     // Audio pulse decay
     this.audioPulse *= 0.94;
 
-    // Update Particles
+    // Update Sanctuary Particles
     for (const p of this.particles) {
-      p.y += p.vy;
-      p.x += p.vx + Math.sin(this.time * p.sineFreq + p.sineOffset) * 0.2;
-      
-      if (p.y < -10) {
-        p.y = this.height + 10;
-        p.x = Math.random() * this.width;
+      if (!this.isReducedMotion) {
+        p.y += p.vy;
+        p.x += p.vx + Math.sin(this.time * p.sineFreq + p.sineOffset) * 0.2;
+        if (p.y < -10) {
+          p.y = this.height + 10;
+          p.x = Math.random() * this.width;
+        }
+        if (p.x < -10) p.x = this.width + 10;
+        if (p.x > this.width + 10) p.x = -10;
       }
-      if (p.x < -10) p.x = this.width + 10;
-      if (p.x > this.width + 10) p.x = -10;
+    }
+
+    // Update Ocean Motes
+    for (const p of this.oceanMotes) {
+      if (!this.isReducedMotion) {
+        p.y += p.vy;
+        p.x += p.vx + Math.sin(this.time * p.sineFreq + p.sineOffset) * 0.25;
+        if (p.y < this.height * 0.45) {
+          p.y = this.height + 10;
+          p.x = Math.random() * this.width;
+        }
+        if (p.x < -10) p.x = this.width + 10;
+        if (p.x > this.width + 10) p.x = -10;
+      }
+    }
+
+    // Update Sunset Motes
+    for (const p of this.sunsetMotes) {
+      if (!this.isReducedMotion) {
+        p.y += p.vy;
+        p.x += p.vx + Math.cos(this.time * p.sineFreq + p.sineOffset) * 0.2;
+        if (p.y < this.height * 0.2) {
+          p.y = this.height * 0.85;
+          p.x = Math.random() * this.width;
+        }
+        if (p.x > this.width + 10) p.x = -10;
+      }
+    }
+
+    // Update Drifting Clouds
+    for (const layer of this.cloudBanks) {
+      for (const c of layer) {
+        if (!this.isReducedMotion) {
+          c.x += c.speed * dt * 0.06;
+          if (c.x > this.width + 300) {
+            c.x = -300;
+          }
+        }
+      }
     }
   }
 
@@ -421,6 +658,206 @@ class AmbientCanvasEngine {
 
     ctx.clearRect(0, 0, this.width, this.height);
 
+    switch (this.currentScene) {
+      case 'ocean':
+        this.renderOceanScene(ctx, palette);
+        break;
+      case 'clouds':
+        this.renderCloudsScene(ctx, palette);
+        break;
+      case 'forest':
+        this.renderForestScene(ctx, palette);
+        break;
+      case 'sanctuary':
+      default:
+        this.renderSanctuaryScene(ctx, palette);
+        break;
+    }
+  }
+
+  // --- SCENE 1: CALM OCEAN SHORELINE ---
+  renderOceanScene(ctx, palette) {
+    const w = this.width;
+    const h = this.height;
+    const horizonY = h * 0.48;
+
+    // Sky Gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+    skyGrad.addColorStop(0, '#020611');
+    skyGrad.addColorStop(0.65, '#07162b');
+    skyGrad.addColorStop(1, '#0e2b4f');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, horizonY + 2);
+
+    // Subtle stars in night sky
+    this.renderStars(ctx, horizonY - 15);
+
+    // Moon & Lunar Corona
+    const moonX = w * 0.5;
+    const moonY = horizonY - h * 0.14;
+    const moonR = Math.max(16, Math.min(26, w * 0.026));
+
+    const corona = ctx.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 7);
+    corona.addColorStop(0, 'rgba(186, 230, 253, 0.16)');
+    corona.addColorStop(0.35, 'rgba(125, 211, 252, 0.06)');
+    corona.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = corona;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR * 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    const moonGrad = ctx.createRadialGradient(moonX - moonR * 0.35, moonY - moonR * 0.35, 1, moonX, moonY, moonR);
+    moonGrad.addColorStop(0, '#ffffff');
+    moonGrad.addColorStop(0.75, '#e0f2fe');
+    moonGrad.addColorStop(1, '#93c5fd');
+    ctx.fillStyle = moonGrad;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ocean Base Gradient
+    const waterGrad = ctx.createLinearGradient(0, horizonY, 0, h);
+    waterGrad.addColorStop(0, '#071e3b');
+    waterGrad.addColorStop(0.45, '#051427');
+    waterGrad.addColorStop(1, '#020914');
+    ctx.fillStyle = waterGrad;
+    ctx.fillRect(0, horizonY, w, h - horizonY);
+
+    // Lunar Reflection Shimmer Column
+    const shimmerGrad = ctx.createLinearGradient(moonX - 90, 0, moonX + 90, 0);
+    shimmerGrad.addColorStop(0, 'rgba(186, 230, 253, 0)');
+    shimmerGrad.addColorStop(0.5, 'rgba(186, 230, 253, 0.12)');
+    shimmerGrad.addColorStop(1, 'rgba(186, 230, 253, 0)');
+    ctx.fillStyle = shimmerGrad;
+    ctx.fillRect(moonX - 110, horizonY, 220, h - horizonY);
+
+    // 4 Layered Waves
+    const t = this.isReducedMotion ? 0 : this.time;
+    const tide = Math.sin(t * 0.45) * 6;
+
+    const waveLayers = [
+      { yFrac: 0.52, amp: 4, freq: 0.005, speed: 0.45, color: 'rgba(8, 32, 60, 0.95)', crest: 'rgba(125, 211, 252, 0.22)' },
+      { yFrac: 0.63, amp: 7, freq: 0.004, speed: 0.6, color: 'rgba(7, 26, 48, 0.92)', crest: 'rgba(125, 211, 252, 0.28)' },
+      { yFrac: 0.76, amp: 11, freq: 0.003, speed: 0.75, color: 'rgba(5, 20, 38, 0.9)', crest: 'rgba(186, 230, 253, 0.35)' },
+      { yFrac: 0.90, amp: 14, freq: 0.0025, speed: 0.9, color: 'rgba(4, 14, 28, 0.96)', crest: 'rgba(224, 242, 254, 0.45)' }
+    ];
+
+    waveLayers.forEach((wave, idx) => {
+      const waveY = h * wave.yFrac + tide * (idx * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      ctx.lineTo(0, waveY);
+
+      const step = 20;
+      for (let x = 0; x <= w + step; x += step) {
+        const y = waveY +
+          Math.sin(x * wave.freq + t * wave.speed) * wave.amp +
+          Math.cos(x * wave.freq * 1.8 - t * wave.speed * 0.7) * (wave.amp * 0.4);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(w, h);
+      ctx.closePath();
+
+      ctx.fillStyle = wave.color;
+      ctx.fill();
+
+      ctx.lineWidth = 1.2 + idx * 0.3;
+      ctx.strokeStyle = wave.crest;
+      ctx.stroke();
+    });
+
+    // Sea Spray & Luminous Motes
+    this.renderSeaMotes(ctx);
+  }
+
+  // --- SCENE 2: SUNSET CLOUDSCAPE ---
+  renderCloudsScene(ctx, palette) {
+    const w = this.width;
+    const h = this.height;
+
+    // Evening Twilight Sky Gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+    skyGrad.addColorStop(0, '#0d0a1b');
+    skyGrad.addColorStop(0.28, '#211234');
+    skyGrad.addColorStop(0.55, '#451834');
+    skyGrad.addColorStop(0.78, '#702d1f');
+    skyGrad.addColorStop(1, '#94441e');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Radiant Setting Sun
+    const sunX = w * 0.5;
+    const sunY = h * 0.62;
+    const sunR = Math.max(28, Math.min(52, w * 0.04));
+
+    const sunAura = ctx.createRadialGradient(sunX, sunY, sunR * 0.2, sunX, sunY, Math.max(w, h) * 0.55);
+    sunAura.addColorStop(0, 'rgba(254, 215, 170, 0.42)');
+    sunAura.addColorStop(0.25, 'rgba(251, 146, 60, 0.22)');
+    sunAura.addColorStop(0.6, 'rgba(244, 114, 182, 0.08)');
+    sunAura.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = sunAura;
+    ctx.fillRect(0, 0, w, h);
+
+    const sunDisk = ctx.createRadialGradient(sunX, sunY, 1, sunX, sunY, sunR);
+    sunDisk.addColorStop(0, '#fffbeb');
+    sunDisk.addColorStop(0.65, '#fde68a');
+    sunDisk.addColorStop(1, 'rgba(251, 146, 60, 0.7)');
+    ctx.fillStyle = sunDisk;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 4 Layers of Volumetric Drifting Clouds
+    this.renderCloudBanks(ctx);
+
+    // Warm Sunset Dust Motes
+    this.renderSunsetMotes(ctx);
+  }
+
+  // --- SCENE 3: QUIET FOREST CANOPY ---
+  renderForestScene(ctx, palette) {
+    const w = this.width;
+    const h = this.height;
+
+    // Midnight Forest Sky
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+    skyGrad.addColorStop(0, '#020906');
+    skyGrad.addColorStop(0.5, '#071f16');
+    skyGrad.addColorStop(1, '#0e2e22');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Stars filtering through canopy
+    this.renderStars(ctx, h * 0.55);
+
+    // Moonlight Aura
+    const moonX = w * 0.74;
+    const moonY = h * 0.16;
+    const aura = ctx.createRadialGradient(moonX, moonY, 10, moonX, moonY, w * 0.45);
+    aura.addColorStop(0, 'rgba(167, 243, 208, 0.16)');
+    aura.addColorStop(0.45, 'rgba(52, 211, 153, 0.05)');
+    aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = aura;
+    ctx.fillRect(0, 0, w, h);
+
+    // Moonlight Shafts / God Rays
+    this.renderMoonlightBeams(ctx, moonX, moonY);
+
+    // Distant Mountain Ridge
+    this.renderMountainRidge(ctx, h * 0.55, '#04160f');
+
+    // Procedural Pine Treeline (Midground & Foreground)
+    this.renderPineTreeline(ctx);
+
+    // Foreground Canopy Framing Silhouettes
+    this.renderCanopyFraming(ctx);
+
+    // Glowing Fireflies
+    this.renderFireflies(ctx);
+  }
+
+  // --- SCENE 0: ORIGINAL SANCTUARY / ABSTRACT GEOMETRY ---
+  renderSanctuaryScene(ctx, palette) {
     // 1. Fullscreen Atmosphere Background Gradient
     const bgGradient = ctx.createLinearGradient(0, 0, 0, this.height);
     bgGradient.addColorStop(0, palette.bgTop);
@@ -428,7 +865,7 @@ class AmbientCanvasEngine {
     ctx.fillStyle = bgGradient;
     ctx.fillRect(0, 0, this.width, this.height);
 
-    // 2. Soft Ambient Radial Glow (Atmospheric Center)
+    // 2. Soft Ambient Radial Glow
     const glowX = this.width * 0.5 + Math.sin(this.time * 0.2) * 50;
     const glowY = this.height * 0.55 + Math.cos(this.time * 0.15) * 30;
     const glowRadius = Math.max(this.width, this.height) * 0.65;
@@ -443,17 +880,206 @@ class AmbientCanvasEngine {
     ctx.fillStyle = radialGlow;
     ctx.fillRect(0, 0, this.width, this.height);
 
-    // 3. Render Moving Spatial Grid
+    // 3. Spatial Grid
     this.renderSpatialGrid(ctx, palette);
 
-    // 4. Render Filament Connections between Seating Nodes
+    // 4. Seating Filament Connections
     this.renderConnections(ctx, palette);
 
-    // 5. Render Circular Seating Formations & Orbital Rings
+    // 5. Seating Nodes & Orbital Rings
     this.renderSeatingNodes(ctx, palette);
 
-    // 6. Render Floating Dust Motes / Particles
+    // 6. Dust Motes
     this.renderParticles(ctx, palette);
+  }
+
+  // --- SUB-RENDERERS FOR SCENIC ASSETS ---
+  renderStars(ctx, maxY) {
+    ctx.save();
+    const t = this.isReducedMotion ? 0 : this.time;
+    for (const s of this.stars) {
+      if (s.y > maxY) continue;
+      const alpha = Math.max(0.08, Math.min(0.85, s.baseAlpha + Math.sin(t * s.twinkleSpeed + s.phase) * 0.2));
+      ctx.fillStyle = `rgba(224, 242, 254, ${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  renderSeaMotes(ctx) {
+    ctx.save();
+    for (const p of this.oceanMotes) {
+      ctx.fillStyle = `rgba(186, 230, 253, ${p.baseAlpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  renderSunsetMotes(ctx) {
+    ctx.save();
+    for (const p of this.sunsetMotes) {
+      ctx.fillStyle = `rgba(254, 215, 170, ${p.baseAlpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  renderCloudBanks(ctx) {
+    ctx.save();
+    for (const layer of this.cloudBanks) {
+      for (const c of layer) {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+
+        for (const p of c.puffs) {
+          const puffGrad = ctx.createRadialGradient(p.ox, p.oy - p.r * 0.35, p.r * 0.2, p.ox, p.oy, p.r);
+          puffGrad.addColorStop(0, `rgba(254, 215, 170, ${(c.alpha * 1.1).toFixed(3)})`);
+          puffGrad.addColorStop(0.5, `rgba(244, 114, 182, ${(c.alpha * 0.7).toFixed(3)})`);
+          puffGrad.addColorStop(1, 'rgba(35, 16, 45, 0)');
+
+          ctx.fillStyle = puffGrad;
+          ctx.beginPath();
+          ctx.arc(p.ox, p.oy, p.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+
+  renderMountainRidge(ctx, horizonY, color) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, this.height);
+    ctx.lineTo(0, horizonY);
+
+    const step = 25;
+    for (let x = 0; x <= this.width + step; x += step) {
+      const y = horizonY + Math.sin(x * 0.003) * 22 + Math.cos(x * 0.007) * 14;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(this.width, this.height);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  renderPineTreeline(ctx) {
+    ctx.save();
+    for (const tree of this.forestPines) {
+      ctx.fillStyle = tree.color;
+      const x = tree.x;
+      const baseY = tree.baseY;
+      const h = tree.height;
+      const w = tree.width;
+      const tiers = tree.tiers;
+
+      // Render triangular tiers from top to bottom
+      for (let i = 0; i < tiers; i++) {
+        const tierH = h * (0.35 + (i / tiers) * 0.2);
+        const tierW = w * (0.3 + (i / tiers) * 0.7);
+        const tierTopY = baseY - h + (i / tiers) * (h * 0.75);
+        const tierBottomY = tierTopY + tierH;
+
+        ctx.beginPath();
+        ctx.moveTo(x, tierTopY);
+        ctx.lineTo(x + tierW * 0.5, tierBottomY);
+        ctx.lineTo(x - tierW * 0.5, tierBottomY);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  renderCanopyFraming(ctx) {
+    ctx.save();
+    ctx.fillStyle = '#010805';
+
+    // Left overhanging branch
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(this.width * 0.18, this.height * 0.08, this.width * 0.28, this.height * 0.02);
+    ctx.quadraticCurveTo(this.width * 0.15, this.height * 0.15, 0, this.height * 0.18);
+    ctx.closePath();
+    ctx.fill();
+
+    // Right overhanging branch
+    ctx.beginPath();
+    ctx.moveTo(this.width, 0);
+    ctx.quadraticCurveTo(this.width * 0.82, this.height * 0.08, this.width * 0.72, this.height * 0.02);
+    ctx.quadraticCurveTo(this.width * 0.85, this.height * 0.16, this.width, this.height * 0.2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  renderMoonlightBeams(ctx, originX, originY) {
+    ctx.save();
+    const t = this.isReducedMotion ? 0 : this.time;
+
+    for (let i = 0; i < this.forestGodRays.length; i++) {
+      const ray = this.forestGodRays[i];
+      const startX = this.width * ray.xFrac;
+      const breathAlpha = ray.alpha + (this.isReducedMotion ? 0 : Math.sin(t * 0.4 + ray.phase) * 0.015);
+
+      const grad = ctx.createLinearGradient(startX, 0, startX + this.height * ray.angle, this.height);
+      grad.addColorStop(0, `rgba(167, 243, 208, ${(breathAlpha * 1.5).toFixed(3)})`);
+      grad.addColorStop(0.5, `rgba(52, 211, 153, ${breathAlpha.toFixed(3)})`);
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(startX, 0);
+      ctx.lineTo(startX + ray.width * 0.4, 0);
+      ctx.lineTo(startX + ray.width + this.height * ray.angle, this.height);
+      ctx.lineTo(startX - ray.width * 0.5 + this.height * ray.angle, this.height);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  renderFireflies(ctx) {
+    ctx.save();
+    const t = this.isReducedMotion ? 0 : this.time;
+
+    for (const f of this.fireflies) {
+      const x = f.baseX + (this.isReducedMotion ? 0 : Math.sin(t * f.freqX + f.phaseX) * f.ampX);
+      const y = f.baseY + (this.isReducedMotion ? 0 : Math.cos(t * f.freqY + f.phaseY) * f.ampY);
+      const pulse = this.isReducedMotion ? 0.7 : Math.max(0.15, Math.sin(t * f.pulseSpeed + f.pulsePhase) * 0.5 + 0.5);
+
+      const color = f.isGolden
+        ? { core: '#fef08a', halo: 'rgba(250, 204, 21, ' }
+        : { core: '#a7f3d0', halo: 'rgba(52, 211, 153, ' };
+
+      const haloR = f.radius * (3.5 + pulse * 2.5);
+      const haloGrad = ctx.createRadialGradient(x, y, 1, x, y, haloR);
+      haloGrad.addColorStop(0, color.halo + (pulse * 0.8).toFixed(3) + ')');
+      haloGrad.addColorStop(0.4, color.halo + (pulse * 0.3).toFixed(3) + ')');
+      haloGrad.addColorStop(1, color.halo + '0)');
+
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, haloR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = color.core;
+      ctx.beginPath();
+      ctx.arc(x, y, f.radius * (0.8 + pulse * 0.4), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   renderSpatialGrid(ctx, palette) {

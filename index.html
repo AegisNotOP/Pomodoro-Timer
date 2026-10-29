@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Algorithmic Ambient Room • Calming Lo-Fi Sanctuary</title>
+  <title>Pomodoro Timer • Calming Lo-Fi Sanctuary</title>
   <meta name="description" content="A calming, lo-fi focus sanctuary with slow generative visual art, moving spatial grids, sunset color palette shifts, 25-minute Pomodoro focus timer, and procedural ambient audio mixer for Rain, White Noise, and Lo-fi Beats.">
   
   <!-- Google Fonts -->
@@ -62,7 +62,7 @@
         </svg>
       </div>
       <div class="min-w-0">
-        <h1 class="text-xs sm:text-sm font-semibold tracking-wide text-white/90 drop-shadow-sm truncate max-w-[150px] xs:max-w-[200px] sm:max-w-none">The Algorithmic Ambient Room</h1>
+        <h1 class="text-xs sm:text-sm font-semibold tracking-wide text-white/90 drop-shadow-sm truncate max-w-[150px] xs:max-w-[200px] sm:max-w-none">Pomodoro Timer</h1>
         <div class="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] text-slate-400 truncate">
           <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 status-dot shrink-0"></span>
           <span id="palette-indicator" class="truncate">Auto Sunset Drift</span>
@@ -132,6 +132,21 @@
         <span class="hidden xs:inline">Audio</span>
       </button>
 
+      <!-- Float Timer (Picture-in-Picture) Button -->
+      <button id="float-timer-btn" class="glass-pill px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5 shadow-sm transition-all" title="Float Timer (Picture-in-Picture)">
+        <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 12h6v5h-6v-5z" />
+        </svg>
+        <span class="hidden xs:inline">Float</span>
+      </button>
+
+      <!-- Scenic Background Switcher in Header -->
+      <button id="scene-header-btn" class="glass-pill px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5 shadow-sm transition-all" title="Switch Background Scene">
+        <span id="scene-header-icon">🌊</span>
+        <span id="scene-header-label" class="hidden xs:inline">Ocean</span>
+      </button>
+
       <button id="zen-toggle-btn" class="glass-pill px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5 shadow-sm" title="Toggle Sanctuary / Zen Mode (Z)">
         <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -141,10 +156,13 @@
     </div>
   </header>
 
-  <!-- Central Stack: Mode Selector Bar + Center Dashboard Panel -->
-  <div id="sanctuary-center-container" class="relative z-10 w-full max-w-md mx-auto flex flex-col items-center gap-2.5 sm:gap-3.5 my-auto px-1 sm:px-0 pointer-events-auto">
+  <!-- Central Workspace Stage: Horizontally Centered Main Timer Stack + Bottom-Left Ambient Sound Menu -->
+  <div id="sanctuary-stage-container" class="relative z-10 w-full max-w-md mx-auto my-auto px-2 sm:px-4 flex flex-col items-center gap-2.5 sm:gap-3.5 pointer-events-auto">
     
-    <!-- Mode Switcher Selector Bar (Above Center Panel, Aligned with it) -->
+    <!-- Central Stack: Mode Selector Bar + Center Dashboard Panel -->
+    <div id="sanctuary-center-container" class="w-full max-w-md flex flex-col items-center gap-2.5 sm:gap-3.5 shrink-0 zen-transition">
+      
+      <!-- Mode Switcher Selector Bar (Above Center Panel, Aligned with it) -->
     <nav id="mode-selector-bar" class="w-full flex items-center justify-between p-1 rounded-2xl glass-panel shadow-lg border border-white/10 gap-1 zen-transition" aria-label="Timer Modes">
       <button data-mode="focus" class="mode-tab flex-1 py-1.5 px-1 sm:px-1.5 text-[10px] sm:text-xs font-medium rounded-xl transition-all duration-300 bg-white/20 text-white shadow-inner border border-white/20 truncate">
         Focus (25m)
@@ -198,8 +216,17 @@
           <span class="text-slate-300 font-medium text-[11px] sm:text-xs truncate">Today’s focus sessions:</span>
           <span id="today-focus-count" class="font-mono text-xs sm:text-sm font-bold text-amber-300 bg-amber-400/10 px-1.5 sm:px-2 py-0.5 rounded-md border border-amber-400/20 shrink-0">0</span>
         </div>
-        <div id="session-cycle-badge" class="text-[10px] sm:text-[11px] font-mono text-slate-400 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded-md border border-white/5 shrink-0">
-          Cycle 1 / 4
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button id="float-timer-btn-dash" class="text-[10px] sm:text-[11px] font-mono text-slate-400 hover:text-indigo-300 bg-white/5 hover:bg-white/10 px-1.5 sm:px-2 py-0.5 rounded-md border border-white/5 transition-all flex items-center gap-1" title="Float Timer (Picture-in-Picture)">
+            <svg class="w-3 h-3 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 12h6v5h-6v-5z" />
+            </svg>
+            <span>Float</span>
+          </button>
+          <div id="session-cycle-badge" class="text-[10px] sm:text-[11px] font-mono text-slate-400 bg-white/5 px-1.5 sm:px-2 py-0.5 rounded-md border border-white/5 shrink-0">
+            Cycle 1 / 4
+          </div>
         </div>
       </div>
 
@@ -283,27 +310,30 @@
         </div>
       </div>
 
-      <!-- Soundscape Quick Presets (Retained inside Center Panel) -->
-      <div class="mt-3 pt-2.5 sm:mt-3.5 sm:pt-3 border-t border-white/10">
-        <div class="flex items-center justify-between mb-1.5">
-          <span class="text-[10px] font-medium text-slate-400 uppercase tracking-wider flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            Sound Presets
+
+      <!-- Scenic Animated Background Selector -->
+      <div class="mt-2.5 pt-2 sm:mt-3 sm:pt-2.5 border-t border-white/10">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[10px] sm:text-[11px] text-slate-400 shrink-0 flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>Background Scene</span>
           </span>
-        </div>
-        <div class="flex items-center justify-between gap-1 sm:gap-1.5">
-          <button class="sound-preset-btn flex-1 py-1 px-1.5 sm:px-2 rounded-lg text-[9px] sm:text-[10px] font-medium glass-panel-subtle hover:text-sky-300 text-slate-400 transition-colors truncate" data-name="Rainy Café" data-rain="0.65" data-noise="0.15" data-lofi="0.5">
-            🌧️ Rainy
-          </button>
-          <button class="sound-preset-btn flex-1 py-1 px-1.5 sm:px-2 rounded-lg text-[9px] sm:text-[10px] font-medium glass-panel-subtle hover:text-purple-300 text-slate-400 transition-colors truncate" data-name="Deep Ocean" data-rain="0.1" data-noise="0.75" data-lofi="0">
-            🌊 Ocean
-          </button>
-          <button class="sound-preset-btn flex-1 py-1 px-1.5 sm:px-2 rounded-lg text-[9px] sm:text-[10px] font-medium glass-panel-subtle hover:text-orange-300 text-slate-400 transition-colors truncate" data-name="Midnight Lo-fi" data-rain="0.25" data-noise="0.1" data-lofi="0.8">
-            ☕ Lo-fi
-          </button>
-          <button class="sound-preset-btn py-1 px-1.5 sm:px-2 rounded-lg text-[9px] sm:text-[10px] font-medium glass-panel-subtle hover:text-slate-200 text-slate-400 transition-colors truncate" data-name="Silence" data-rain="0" data-noise="0" data-lofi="0">
-            🔇 Clear
-          </button>
+          <div id="scene-selector-group" class="flex items-center gap-1 sm:gap-1.5" role="radiogroup" aria-label="Animated background scene">
+            <button data-scene="ocean" class="scene-pill px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-medium transition-all" role="radio" aria-checked="true" title="Calm Ocean Shoreline">
+              🌊 Ocean
+            </button>
+            <button data-scene="clouds" class="scene-pill px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-medium transition-all" role="radio" aria-checked="false" title="Sunset Cloudscape">
+              🌅 Sunset
+            </button>
+            <button data-scene="forest" class="scene-pill px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-medium transition-all" role="radio" aria-checked="false" title="Quiet Forest Canopy">
+              🌲 Forest
+            </button>
+            <button data-scene="sanctuary" class="scene-pill px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-[11px] font-medium transition-all" role="radio" aria-checked="false" title="Geometric Sanctuary">
+              🌌 Grid
+            </button>
+          </div>
         </div>
       </div>
 
@@ -387,80 +417,105 @@
       </div>
 
     </main>
+    </div>
 
-    <!-- Ambient Audio Mixer Panel (Relocated to Bottom-Left Corner on Desktop, Cleanly Stacked on Mobile) -->
-    <aside id="ambient-audio-mixer" class="audio-mixer-dock w-full max-w-md lg:w-72 lg:fixed lg:bottom-4 lg:left-4 z-20 glass-panel rounded-2xl p-3 sm:p-4 shadow-2xl zen-transition border border-white/10" aria-label="Ambient Audio Mixer">
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2 cursor-pointer select-none" id="mixer-title-bar">
-          <div class="w-6 h-6 rounded-lg glass-panel-subtle flex items-center justify-center text-amber-400 shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+    <!-- Ambient Audio Mixer: Bottom-Left on Desktop, Stacked below on Mobile -->
+    <aside id="ambient-mixer-dock-wrapper" class="w-full max-w-md lg:w-64 xl:w-72 lg:fixed lg:bottom-4 xl:bottom-6 lg:left-4 xl:left-6 z-20 mt-2.5 sm:mt-3 lg:mt-0 zen-transition">
+      <!-- Compact Collapsible Ambient Audio Mixer Section -->
+      <section id="ambient-audio-mixer" class="w-full glass-panel rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xl border border-white/10 zen-transition" aria-label="Ambient sounds">
+        <!-- Section Heading & Toggle Button -->
+        <button
+          id="ambient-mixer-trigger"
+          type="button"
+          aria-expanded="false"
+          aria-controls="ambient-mixer-content"
+          class="w-full flex items-center justify-between text-left group cursor-pointer select-none rounded-xl focus:outline-none transition-colors"
+        >
+          <div class="flex items-center gap-2 sm:gap-2.5">
+            <div class="w-6 h-6 rounded-lg glass-panel-subtle flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+              <span class="text-xs sm:text-sm font-semibold text-slate-200 group-hover:text-white transition-colors">Ambient sounds</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1.5 text-slate-400 group-hover:text-slate-200">
+            <svg id="mixer-chevron-icon" class="w-4 h-4 text-slate-400 group-hover:text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
           </div>
-          <div class="flex items-baseline gap-1.5">
-            <h2 class="text-xs font-semibold text-slate-200">Ambient Mixer</h2>
-            <span class="text-[9px] text-slate-400 font-mono hidden xs:inline">Synth</span>
-          </div>
-        </div>
-
-        <!-- Mobile Minimize / Expand Toggle -->
-        <button id="mixer-toggle-btn" class="sm:hidden text-slate-400 hover:text-white p-1 rounded-md hover:bg-white/10 transition-colors" title="Toggle Mixer Controls">
-          <svg class="w-4 h-4 transition-transform duration-200" id="mixer-toggle-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
         </button>
-      </div>
 
-      <!-- Sliders Container -->
-      <div id="mixer-sliders-body" class="space-y-2 sm:space-y-2.5 transition-all duration-300">
-        <!-- Slider 1: Rain -->
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-xs">
-            <div class="flex items-center gap-1.5 text-slate-200">
-              <div class="w-5 h-5 rounded-md glass-panel-subtle flex items-center justify-center text-sky-400 shrink-0">
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
-                </svg>
+        <!-- Collapsible Inline Content -->
+        <div
+          id="ambient-mixer-content"
+          class="mixer-collapsible-body"
+          role="region"
+          aria-labelledby="ambient-mixer-trigger"
+        >
+          <div class="pt-2.5 sm:pt-3 border-t border-white/10 mt-2 sm:mt-2.5 space-y-2.5 sm:space-y-3">
+            <!-- Presets Row -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-[9px] sm:text-[10px] font-medium text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  Presets
+                </span>
               </div>
-              <span class="font-medium text-[11px] sm:text-xs">Rain</span>
+              <div class="grid grid-cols-4 gap-1 sm:gap-1.5">
+                <button class="sound-preset-btn py-1 px-1 rounded-lg text-[9px] sm:text-[10px] font-medium glass-panel-subtle hover:text-sky-300 text-slate-400 transition-colors truncate text-center" data-name="Rainy Café" data-rain="0.65" data-noise="0.15" data-lofi="0.5">
+                  🌧️ Rainy
+                </button>
+                <button class="sound-preset-btn py-1 px-1 rounded-lg text-[9px] sm:text-[10px] font-medium glass-panel-subtle hover:text-purple-300 text-slate-400 transition-colors truncate text-center" data-name="Deep Ocean" data-rain="0.1" data-noise="0.75" data-lofi="0">
+                  🌊 Ocean
+                </button>
+                <button class="sound-preset-btn py-1 px-1 rounded-lg text-[9px] sm:text-[10px] font-medium glass-panel-subtle hover:text-orange-300 text-slate-400 transition-colors truncate text-center" data-name="Midnight Lo-fi" data-rain="0.25" data-noise="0.1" data-lofi="0.8">
+                  ☕ Lo-fi
+                </button>
+                <button class="sound-preset-btn py-1 px-1 rounded-lg text-[9px] sm:text-[10px] font-medium glass-panel-subtle hover:text-slate-200 text-slate-400 transition-colors truncate text-center" data-name="Silence" data-rain="0" data-noise="0" data-lofi="0">
+                  🔇 Clear
+                </button>
+              </div>
             </div>
-            <span id="val-rain" class="font-mono text-[10px] sm:text-[11px] text-sky-400 font-medium">0%</span>
-          </div>
-          <input id="slider-rain" type="range" min="0" max="1" step="0.01" value="0" aria-label="Rain volume">
-        </div>
 
-        <!-- Slider 2: White Noise -->
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-xs">
-            <div class="flex items-center gap-1.5 text-slate-200">
-              <div class="w-5 h-5 rounded-md glass-panel-subtle flex items-center justify-center text-purple-400 shrink-0">
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+            <!-- Sound Sliders Container (Compact Single-Row Design) -->
+            <div id="mixer-sliders-body" class="space-y-1.5 sm:space-y-2">
+              <!-- Slider 1: Rain -->
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5 w-16 sm:w-20 shrink-0 text-slate-200">
+                  <span class="text-sky-400 text-xs">🌧️</span>
+                  <span class="font-medium text-[11px] truncate">Rain</span>
+                </div>
+                <input id="slider-rain" type="range" min="0" max="1" step="0.01" value="0" aria-label="Rain volume" class="flex-1 min-w-0">
+                <span id="val-rain" class="font-mono text-[10px] sm:text-[11px] text-sky-400 font-medium w-7 text-right shrink-0">0%</span>
               </div>
-              <span class="font-medium text-[11px] sm:text-xs">White Noise</span>
-            </div>
-            <span id="val-noise" class="font-mono text-[10px] sm:text-[11px] text-purple-400 font-medium">0%</span>
-          </div>
-          <input id="slider-noise" type="range" min="0" max="1" step="0.01" value="0" aria-label="White noise volume">
-        </div>
 
-        <!-- Slider 3: Lo-fi Beats -->
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-xs">
-            <div class="flex items-center gap-1.5 text-slate-200">
-              <div class="w-5 h-5 rounded-md glass-panel-subtle flex items-center justify-center text-orange-400 shrink-0">
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                </svg>
+              <!-- Slider 2: White Noise -->
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5 w-16 sm:w-20 shrink-0 text-slate-200">
+                  <span class="text-purple-400 text-xs">🌊</span>
+                  <span class="font-medium text-[11px] truncate">Noise</span>
+                </div>
+                <input id="slider-noise" type="range" min="0" max="1" step="0.01" value="0" aria-label="White noise volume" class="flex-1 min-w-0">
+                <span id="val-noise" class="font-mono text-[10px] sm:text-[11px] text-purple-400 font-medium w-7 text-right shrink-0">0%</span>
               </div>
-              <span class="font-medium text-[11px] sm:text-xs">Lo-fi Beats</span>
+
+              <!-- Slider 3: Lo-fi Beats -->
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5 w-16 sm:w-20 shrink-0 text-slate-200">
+                  <span class="text-orange-400 text-xs">☕</span>
+                  <span class="font-medium text-[11px] truncate">Lo-fi</span>
+                </div>
+                <input id="slider-lofi" type="range" min="0" max="1" step="0.01" value="0" aria-label="Lo-fi beats volume" class="flex-1 min-w-0">
+                <span id="val-lofi" class="font-mono text-[10px] sm:text-[11px] text-orange-400 font-medium w-7 text-right shrink-0">0%</span>
+              </div>
             </div>
-            <span id="val-lofi" class="font-mono text-[10px] sm:text-[11px] text-orange-400 font-medium">0%</span>
           </div>
-          <input id="slider-lofi" type="range" min="0" max="1" step="0.01" value="0" aria-label="Lo-fi beats volume">
         </div>
-      </div>
+      </section>
     </aside>
 
   </div>
@@ -474,14 +529,14 @@
   <!-- Bottom Shortcut Hints (visible on desktop displays with adequate vertical clearance) -->
   <footer class="keyboard-shortcuts-footer fixed bottom-2.5 left-0 right-0 z-10 text-center pointer-events-none px-4">
     <p class="text-[10px] text-slate-500/80 font-mono truncate">
-      <kbd class="text-slate-400">Space</kbd> Start/Pause • <kbd class="text-slate-400">P</kbd> Pause • <kbd class="text-slate-400">R</kbd> Reset • <kbd class="text-slate-400">S</kbd> Skip • <kbd class="text-slate-400">Z</kbd> Zen • <kbd class="text-slate-400">M</kbd> Mute
+      <kbd class="text-slate-400">Space</kbd> Start/Pause • <kbd class="text-slate-400">P</kbd> Pause • <kbd class="text-slate-400">R</kbd> Reset • <kbd class="text-slate-400">S</kbd> Skip • <kbd class="text-slate-400">Z</kbd> Zen • <kbd class="text-slate-400">M</kbd> Mute • <kbd class="text-slate-400">B</kbd> Scene
     </p>
   </footer>
 
-  <!-- Toast Notification Overlay -->
-  <div id="ambient-toast" class="toast-hidden fixed top-6 right-6 z-50 px-4 py-2.5 rounded-2xl glass-panel text-xs text-white shadow-xl flex items-center gap-2 border border-white/20">
-    <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-    <span id="toast-text">Ambient Sanctuary Ready</span>
+  <!-- Toast Notification Overlay (Transient messages, Bottom-Right corner) -->
+  <div id="ambient-toast" class="toast-hidden fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-50 px-4 py-2.5 rounded-2xl glass-panel text-xs text-white shadow-xl flex items-center gap-2 border border-white/20 max-w-[calc(100vw-2rem)] sm:max-w-sm pointer-events-auto">
+    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+    <span id="toast-text" class="truncate">Ambient Sanctuary Ready</span>
   </div>
 
   <!-- ================= AUTHENTICATION MODAL ================= -->
